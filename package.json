@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "preinstall": "node -e \"if(!/^pnpm\\//.test(process.env.npm_config_user_agent||'')){console.error('\\n  This repo uses pnpm. Run `pnpm install` from the repo root.\\n  Adding a package: pnpm add --filter poko-frontend <pkg>\\n');process.exit(1)}\"",
     "dev": "pnpm --filter poko-frontend dev",
     "build": "pnpm --filter poko-frontend build",
     "start": "pnpm --filter poko-frontend start",
