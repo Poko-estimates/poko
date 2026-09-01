@@ -117,7 +117,7 @@ jobs:
           # Build-time placeholders. Swap for repo secrets once the frontend
           # actually talks to Supabase.
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder-anon-key
 
       # There is no test runner installed yet. This stays green until you add
       # one, then starts enforcing automatically — no workflow edit needed.
