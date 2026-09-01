@@ -1,0 +1,77 @@
+name: PR Quality Checks (Dev)
+
+on:
+  pull_request:
+    branches:
+      - dev
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # --- FRONTEND CHECKS ---
+  frontend-checks:
+    name: Frontend Linter, Types & Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: ./frontend/pnpm-lock.yaml
+
+      - name: Install Frontend Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Linter
+        run: pnpm run lint
+
+      - name: Run Type Check
+        run: pnpm run type-check || pnpm exec tsc --noEmit
+
+      - name: Run Frontend Tests
+        run: pnpm test
+        env:
+          CI: true
+          NEXT_PUBLIC_SUPABASE_URL: "https://placeholder-url.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-anon-key"
+
+  # --- SUPABASE / BACKEND CHECKS ---
+  supabase-checks:
+    name: Supabase Linter & Database Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Check Supabase Migration Format & Syntax
+        run: supabase db lint --linked=false
+        working-directory: ./backend
+
+      # Optional: Test migrations against a local Supabase instance in CI
+      - name: Start Local Supabase & Validate Migrations
+        run: |
+          supabase start
+          supabase test db
+        working-directory: ./backend
