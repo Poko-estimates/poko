@@ -1,0 +1,18 @@
+{
+  "name": "@poko/backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "supabase start",
+    "stop": "supabase stop",
+    "status": "supabase status",
+    "reset": "supabase db reset",
+    "migration": "supabase migration new",
+    "gen:types": "supabase gen types typescript --local > types/database.ts",
+    "link": "supabase link",
+    "push": "supabase db push"
+  },
+  "devDependencies": {
+    "supabase": "^2.100.1"
+  }
+}
