@@ -1,0 +1,215 @@
+name: PR Quality Checks
+
+on:
+  pull_request:
+    branches: [dev, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
+  workflow_dispatch:
+
+# One run per PR. A new push cancels the in-flight run instead of queueing.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: these jobs only read the repo.
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Decide which halves of the monorepo this PR actually touches, so a
+  # migration-only PR doesn't pay for a Next build (and vice versa).
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared: &shared
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
+              - '.github/workflows/pr-tests.yml'
+            frontend:
+              - *shared
+              - 'frontend/**'
+            backend:
+              - *shared
+              - 'backend/**'
+
+  # ---------------------------------------------------------------------------
+  # FRONTEND — lint, typecheck, build
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: Frontend (lint, types, build)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      # pnpm MUST be installed before setup-node, or `cache: pnpm` has no
+      # binary to ask for the store path.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        # No `version:` on purpose — it reads "packageManager" from the root
+        # package.json (pnpm@10.18.1), so CI and local can never drift apart.
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          # The lockfile lives ONLY at the workspace root. Pointing this at
+          # frontend/pnpm-lock.yaml is what caused
+          # "Some specified paths were not resolved".
+          cache-dependency-path: pnpm-lock.yaml
+
+      # Install the whole workspace from the root. --frozen-lockfile makes the
+      # build fail if someone edited package.json without refreshing the lock.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: frontend
+        run: pnpm lint
+
+      # next-env.d.ts and .next/types are gitignored, so a clean checkout has
+      # no generated route types and tsc fails with "Cannot find name
+      # 'LayoutProps'". typegen writes them without a full build.
+      - name: Generate Next.js types
+        working-directory: frontend
+        run: pnpm exec next typegen
+
+      - name: Typecheck
+        working-directory: frontend
+        run: pnpm exec tsc --noEmit
+
+      # Reuse Next's build cache across runs. Keyed on the lockfile plus the
+      # sources, so it invalidates when either changes.
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: frontend/.next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('frontend/**/*.[jt]s', 'frontend/**/*.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-next-${{ hashFiles('pnpm-lock.yaml') }}-
+
+      - name: Build
+        working-directory: frontend
+        run: pnpm build
+        env:
+          # Build-time placeholders. Swap for repo secrets once the frontend
+          # actually talks to Supabase.
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+
+      # There is no test runner installed yet. This stays green until you add
+      # one, then starts enforcing automatically — no workflow edit needed.
+      - name: Unit tests
+        working-directory: frontend
+        run: |
+          if node -e "process.exit(require('./package.json').scripts?.test ? 0 : 1)"; then
+            pnpm test
+          else
+            echo "::notice title=No tests::frontend/package.json has no \"test\" script — skipping."
+          fi
+        env:
+          CI: "true"
+
+  # ---------------------------------------------------------------------------
+  # BACKEND — boot a real Postgres, apply migrations, lint the schema
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend (migrations, schema lint)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      # Pinned, not `latest` — a CLI release should never turn a green PR red
+      # without a commit. Bump this in lockstep with backend/package.json.
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.116.0
+
+      # `db start` boots Postgres only (no Studio/Kong/Realtime/Storage) and
+      # applies every migration from scratch. If a migration is malformed or
+      # out of order, this is where it fails.
+      - name: Start Postgres and apply migrations
+        working-directory: backend
+        run: supabase db start
+
+      # Static analysis of the resulting schema. Requires a running database,
+      # which is why it comes after the start step.
+      - name: Lint database schema
+        working-directory: backend
+        run: supabase db lint --level warning --fail-on error
+
+      # Security/performance advisors (missing RLS, unindexed FKs, ...).
+      # Non-blocking for now; drop continue-on-error to enforce.
+      - name: Database advisors
+        working-directory: backend
+        run: supabase db advisors --local --type all --level warn
+        continue-on-error: true
+
+      # pgTAP. Skipped until you create backend/supabase/tests/.
+      - name: Database tests (pgTAP)
+        working-directory: backend
+        run: |
+          if [ -d supabase/tests ] && [ -n "$(ls -A supabase/tests 2>/dev/null)" ]; then
+            supabase test db
+          else
+            echo "::notice title=No pgTAP tests::backend/supabase/tests/ is empty — skipping."
+          fi
+
+      - name: Dump Postgres logs on failure
+        if: failure()
+        run: docker ps -a && docker logs supabase_db_backend --tail 200 || true
+
+      - name: Stop Supabase
+        if: always()
+        working-directory: backend
+        run: supabase stop --no-backup || true
+
+  # ---------------------------------------------------------------------------
+  # Single required status check. Because the jobs above are conditional, a
+  # skipped job would leave a required check pending forever — this gate
+  # collapses them into one pass/fail. Point branch protection at THIS job.
+  # ---------------------------------------------------------------------------
+  ci:
+    name: CI
+    needs: [frontend, backend]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify no job failed
+        run: |
+          results="${{ join(needs.*.result, ' ') }}"
+          echo "Upstream results: $results"
+          for r in $results; do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
+              echo "::error::A required job did not pass."
+              exit 1
+            fi
+          done
+          echo "All required jobs passed or were skipped."
