@@ -8,7 +8,10 @@ import { cn } from "@/lib/utils"
 
 function Hero() {
   return (
-    <section className="relative isolate overflow-hidden bg-primary text-white">
+    <section
+      id="hero"
+      className="relative isolate overflow-hidden bg-primary text-white"
+    >
       <Container className="relative grid items-center gap-12 py-16 sm:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-16 lg:py-28">
         <div className="min-w-0 max-w-xl">
           <h1 className="text-4xl leading-[1.08] font-semibold tracking-tight text-balance sm:text-5xl lg:text-6xl">

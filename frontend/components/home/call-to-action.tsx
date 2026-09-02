@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 
 function CallToAction() {
   return (
-    <section className="bg-background py-20 sm:py-24">
+    <section id="get-started" className="bg-background py-20 sm:py-24">
       <Container>
         <div className="relative isolate overflow-hidden rounded-3xl bg-primary px-6 py-16 text-center sm:px-16">
             <div className="relative mx-auto max-w-2xl">
