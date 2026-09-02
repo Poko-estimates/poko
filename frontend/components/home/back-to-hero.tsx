@@ -4,9 +4,7 @@ import { useEffect, useState } from "react"
 import { ArrowUp } from "lucide-react"
 
 type BackToHeroProps = {
-  /** Section that reveals the arrow once it scrolls into view. */
   watchId: string
-  /** Section the arrow scrolls back to. */
   targetId: string
 }
 

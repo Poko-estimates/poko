@@ -9,10 +9,6 @@ const verbs: Record<Intent, string> = {
   signup: "Sign up",
 }
 
-/**
- * Google and GitHub entry points, plus the rule that separates them from the
- * email form below.
- */
 function SocialAuth({
   intent,
   className,

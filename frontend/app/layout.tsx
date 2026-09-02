@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     "sprint planning",
   ],
   openGraph: {
-    title: "Poko — Planning poker for agile teams",
+    title: "Poko — Estimation tool for agile teams",
     description:
       "Estimate as a team and agree in minutes. Blind voting, outlier detection, and two-way sync with your issue tracker.",
     siteName: "Poko",
