@@ -30,7 +30,6 @@ function Footer() {
             </p>
           </div>
 
-          {/* One group of links, so it reads better as a row than a lone column. */}
           <nav aria-labelledby="footer-product">
             <h2 id="footer-product" className="sr-only">
               Product

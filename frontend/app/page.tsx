@@ -1,3 +1,4 @@
+import { BackToHero } from "@/components/home/back-to-hero"
 import { CallToAction } from "@/components/home/call-to-action"
 import { Features } from "@/components/home/features"
 import { Hero } from "@/components/home/hero"
@@ -19,6 +20,7 @@ export default function Page() {
         <Pricing />
         <CallToAction />
       </main>
+      <BackToHero watchId="get-started" targetId="hero" />
       <Footer />
     </>
   )

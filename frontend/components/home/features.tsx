@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { Container } from "@/components/site/container"
+import { Reveal } from "@/components/site/reveal"
 import { BacklogPreview } from "@/components/home/visuals/backlog-preview"
 import { ConsensusPreview } from "@/components/home/visuals/consensus-preview"
 import { cn } from "@/lib/utils"
@@ -86,7 +87,7 @@ function Features() {
   return (
     <section id="features" className="scroll-mt-24 bg-surface py-20 sm:py-28">
       <Container>
-        <div className="max-w-2xl">
+        <Reveal className="max-w-2xl">
           <p className="text-sm font-semibold tracking-[0.14em] text-secondary uppercase">
             Features
           </p>
@@ -97,7 +98,7 @@ function Features() {
             Built around the way agile teams actually estimate: pull the
             backlog, deal a round, talk about the gap, commit the number.
           </p>
-        </div>
+        </Reveal>
 
         <div className="mt-14 space-y-6">
           {splits.map((split, index) => {
@@ -105,7 +106,8 @@ function Features() {
             const reversed = index % 2 === 1
 
             return (
-              <article
+              <Reveal
+                as="article"
                 key={split.title}
                 className="grid overflow-hidden rounded-3xl border border-border bg-card lg:grid-cols-2"
               >
@@ -155,27 +157,31 @@ function Features() {
                     <Visual />
                   </div>
                 </div>
-              </article>
+              </Reveal>
             )
           })}
         </div>
 
         <ul className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {capabilities.map((capability) => (
-            <li
+          {capabilities.map((capability, index) => (
+            <Reveal
+              as="li"
               key={capability.title}
-              className="rounded-2xl border border-border bg-card p-6 transition-shadow hover:shadow-[0_16px_40px_-24px_rgba(20,33,61,0.5)]"
+              delay={(index % 3) * 90}
+              className="group"
             >
-              <span className="flex size-10 items-center justify-center rounded-xl bg-primary">
-                <capability.icon className="size-5 text-secondary" />
-              </span>
-              <h3 className="mt-4 text-base font-semibold text-primary">
-                {capability.title}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {capability.body}
-              </p>
-            </li>
+              <div className="h-full rounded-2xl border border-border bg-card p-6 transition-[transform,box-shadow] duration-300 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_16px_40px_-24px_rgba(20,33,61,0.5)]">
+                <span className="flex size-10 items-center justify-center rounded-xl bg-primary transition-transform duration-300 group-hover:scale-105">
+                  <capability.icon className="size-5 text-secondary" />
+                </span>
+                <h3 className="mt-4 text-base font-semibold text-primary">
+                  {capability.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {capability.body}
+                </p>
+              </div>
+            </Reveal>
           ))}
         </ul>
       </Container>

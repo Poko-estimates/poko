@@ -40,7 +40,7 @@ function SessionPreview() {
           poko.app/room/atlas-sprint-24
         </p>
         <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-secondary/15 px-2.5 py-1 text-[0.6875rem] font-semibold tracking-wide text-secondary uppercase">
-          <span className="size-1.5 rounded-full bg-secondary" />
+          <span className="size-1.5 rounded-full bg-secondary motion-safe:animate-breathe" />
           Live
         </span>
       </div>
@@ -89,10 +89,15 @@ function SessionPreview() {
                 )}
               >
                 {person.vote ?? (
+                  // Thinking indicator for the teammate who hasn't voted yet.
                   <span className="flex gap-0.5" aria-hidden="true">
-                    <span className="size-1 rounded-full bg-current" />
-                    <span className="size-1 rounded-full bg-current" />
-                    <span className="size-1 rounded-full bg-current" />
+                    {[0, 200, 400].map((offset) => (
+                      <span
+                        key={offset}
+                        style={{ animationDelay: `${offset}ms` }}
+                        className="size-1 rounded-full bg-current motion-safe:animate-breathe"
+                      />
+                    ))}
                   </span>
                 )}
               </div>

@@ -1,4 +1,5 @@
 import { Container } from "@/components/site/container"
+import { Reveal } from "@/components/site/reveal"
 
 const steps = [
   {
@@ -22,23 +23,28 @@ function HowItWorks() {
       className="scroll-mt-24 border-y border-border bg-background py-20 sm:py-28"
     >
       <Container>
-        <div className="max-w-2xl">
+        <Reveal className="max-w-2xl">
           <p className="text-sm font-semibold tracking-[0.14em] text-secondary uppercase">
             How it works
           </p>
           <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-tight text-primary text-balance sm:text-4xl">
             Three steps, ninety seconds a story
           </h2>
-        </div>
+        </Reveal>
 
         <ol className="mt-14 grid gap-10 md:grid-cols-3 md:gap-8">
           {steps.map((step, index) => (
-            <li key={step.title} className="relative">
-              {/* Rule linking the steps on wide screens. */}
+            <Reveal
+              as="li"
+              key={step.title}
+              delay={index * 140}
+              className="group relative"
+            >
+              {/* Rule linking the steps on wide screens, drawn as each step lands. */}
               {index < steps.length - 1 && (
                 <span
                   aria-hidden="true"
-                  className="absolute top-6 left-14 hidden h-px w-[calc(100%-3rem)] bg-border md:block"
+                  className="absolute top-6 left-14 hidden h-px w-[calc(100%-3rem)] origin-left scale-x-0 bg-border transition-transform delay-300 duration-700 ease-out group-data-[visible=true]:scale-x-100 md:block"
                 />
               )}
               <span className="relative flex size-12 items-center justify-center rounded-2xl bg-primary text-lg font-semibold text-secondary tabular-nums">
@@ -50,7 +56,7 @@ function HowItWorks() {
               <p className="mt-3 leading-relaxed text-muted-foreground">
                 {step.body}
               </p>
-            </li>
+            </Reveal>
           ))}
         </ol>
       </Container>
