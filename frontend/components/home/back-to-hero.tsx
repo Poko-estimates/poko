@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { ArrowUp } from "lucide-react"
 
+import { scrollBehavior } from "@/lib/utils"
+
 type BackToHeroProps = {
   watchId: string
   targetId: string
@@ -28,14 +30,7 @@ function BackToHero({ watchId, targetId }: BackToHeroProps) {
     const target = document.getElementById(targetId)
     if (!target) return
 
-    const reduceMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches
-
-    target.scrollIntoView({
-      behavior: reduceMotion ? "auto" : "smooth",
-      block: "start",
-    })
+    target.scrollIntoView({ behavior: scrollBehavior(), block: "start" })
   }
 
   return (

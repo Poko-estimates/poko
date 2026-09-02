@@ -10,7 +10,9 @@ function Hero() {
   return (
     <section
       id="hero"
-      className="relative isolate overflow-hidden bg-primary text-white"
+      // Clears the sticky header (h-16 plus its bottom border) so scrolling
+      // here lands at the very top of the page rather than under the navbar.
+      className="relative isolate scroll-mt-16.25 overflow-hidden bg-primary text-white"
     >
       <Container className="relative grid items-center gap-12 py-16 sm:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-16 lg:py-28">
         <div className="min-w-0 max-w-xl">
