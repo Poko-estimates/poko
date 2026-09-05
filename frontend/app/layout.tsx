@@ -10,6 +10,7 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
     "sprint planning",
   ],
   openGraph: {
-    title: "Poko — Planning poker for agile teams",
+    title: "Poko — Estimation tool for agile teams",
     description:
       "Estimate as a team and agree in minutes. Blind voting, outlier detection, and two-way sync with your issue tracker.",
     siteName: "Poko",
@@ -41,6 +42,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      // Tells the router the smooth scrolling in globals.css is intentional.
+      data-scroll-behavior="smooth"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>

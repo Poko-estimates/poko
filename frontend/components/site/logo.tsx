@@ -1,6 +1,9 @@
-import Link from "next/link"
+"use client"
 
-import { cn } from "@/lib/utils"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+
+import { cn, scrollBehavior } from "@/lib/utils"
 
 /**
  * Poko wordmark: two offset estimation cards inside a rounded tile.
@@ -13,9 +16,30 @@ function Logo({
   className?: string
   tone?: "dark" | "light"
 }) {
+  const pathname = usePathname()
+
+  function handleClick(event: React.MouseEvent<HTMLAnchorElement>) {
+    // Off the home page the link navigates as usual, and modified clicks
+    // (new tab, new window) are always left alone.
+    if (
+      pathname !== "/" ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return
+    }
+
+    // Already home: return to the top instead of re-navigating to this page.
+    event.preventDefault()
+    window.scrollTo({ top: 0, behavior: scrollBehavior() })
+  }
+
   return (
     <Link
       href="/"
+      onClick={handleClick}
       aria-label="Poko home"
       className={cn(
         "group/logo inline-flex items-center gap-2.5 rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-secondary/50",

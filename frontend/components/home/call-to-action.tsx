@@ -2,15 +2,16 @@ import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 
 import { Container } from "@/components/site/container"
+import { Reveal } from "@/components/site/reveal"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 function CallToAction() {
   return (
-    <section className="bg-background py-20 sm:py-24">
+    <section id="get-started" className="bg-background py-20 sm:py-24">
       <Container>
-        <div className="relative isolate overflow-hidden rounded-3xl bg-primary px-6 py-16 text-center sm:px-16">
-            <div className="relative mx-auto max-w-2xl">
+        <Reveal className="relative isolate overflow-hidden rounded-3xl bg-primary px-6 py-16 text-center sm:px-16">
+          <div className="relative mx-auto max-w-2xl">
             <h2 className="text-3xl leading-tight font-semibold tracking-tight text-white text-balance sm:text-4xl">
               Your next refinement doesn&apos;t have to run long
             </h2>
@@ -24,15 +25,15 @@ function CallToAction() {
                 href="/signup"
                 className={cn(
                   buttonVariants({ variant: "secondary", size: "xl" }),
-                  "justify-center"
+                  "justify-center hover:-translate-y-0.5"
                 )}
               >
                 Create your free room
-                <ArrowRight className="size-4" />
+                <ArrowRight className="size-4 transition-transform group-hover/button:translate-x-0.5" />
               </Link>
             </div>
           </div>
-        </div>
+        </Reveal>
       </Container>
     </section>
   )
