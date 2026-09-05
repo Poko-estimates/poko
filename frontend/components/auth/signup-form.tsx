@@ -19,23 +19,8 @@ function SignupForm() {
       </header>
 
       <SocialAuth intent="signup" className="mt-7" />
-
-      {/* Base UI validates on submit and re-validates on change afterwards.
-          Hand the values to the sign-up action once auth is wired up. */}
+      
       <Form className="mt-6 flex flex-col gap-4" onFormSubmit={() => {}}>
-        <Field name="name">
-          <FieldLabel>Full name</FieldLabel>
-          <Input
-            type="text"
-            autoComplete="name"
-            placeholder="Jane Doe"
-            required
-          />
-          <FieldError match="valueMissing">
-            Tell your team who you are.
-          </FieldError>
-        </Field>
-
         <Field name="email">
           <FieldLabel>Email</FieldLabel>
           <Input
