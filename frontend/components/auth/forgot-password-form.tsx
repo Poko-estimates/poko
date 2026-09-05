@@ -1,16 +1,32 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import Link from "next/link"
 import { ArrowLeft, KeyRound, MailCheck } from "lucide-react"
 import { Form } from "@base-ui/react/form"
 
+import { FormAlert } from "@/components/auth/form-alert"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { requestPasswordReset } from "@/lib/auth/actions"
 
 function ForgotPasswordForm() {
+  const [pending, startTransition] = useTransition()
+  const [formError, setFormError] = useState<string | null>(null)
   const [sentTo, setSentTo] = useState<string | null>(null)
+
+  function handleSubmit(values: Record<string, unknown>) {
+    const email = String(values.email ?? "")
+    setFormError(null)
+
+    startTransition(async () => {
+      const result = await requestPasswordReset(email)
+
+      if (result.formError) setFormError(result.formError)
+      else setSentTo(email)
+    })
+  }
 
   return (
     <div className="w-full max-w-md overflow-hidden rounded-3xl border border-border/70 bg-card px-6 py-10 shadow-[0_45px_90px_-45px_rgba(20,33,61,0.55)] sm:px-10">
@@ -28,11 +44,9 @@ function ForgotPasswordForm() {
             reset your password.
           </p>
 
-          {/* Swap this for the password-reset request once auth is wired up. */}
-          <Form
-            className="mt-7 flex flex-col gap-4"
-            onFormSubmit={(values) => setSentTo(String(values.email ?? ""))}
-          >
+          <Form className="mt-7 flex flex-col gap-4" onFormSubmit={handleSubmit}>
+            {formError && <FormAlert>{formError}</FormAlert>}
+
             <Field name="email">
               <FieldLabel>Email</FieldLabel>
               <Input
@@ -53,9 +67,10 @@ function ForgotPasswordForm() {
               type="submit"
               variant="secondary"
               size="xl"
+              disabled={pending}
               className="mt-2 w-full"
             >
-              Send reset link
+              {pending ? "Sending…" : "Send reset link"}
             </Button>
           </Form>
         </>
