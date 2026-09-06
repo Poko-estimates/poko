@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
-import { SessionRoom } from "@/components/dashboard/session-room"
+import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { SignOutButton } from "@/components/dashboard/sign-out-button"
 import { WelcomeAlert } from "@/components/dashboard/welcome-alert"
 import { Container } from "@/components/site/container"
@@ -50,12 +50,12 @@ export default async function Page({ searchParams }: PageProps<"/dashboard">) {
               Good to see you, {firstNameOf(fullName)}
             </h1>
             <p className="mt-2 leading-relaxed text-muted-foreground">
-              Your room is open and the next story is on the table. Pick a card
-              — the rest of the team is waiting on you.
+              Set up a game, deal the deck, and get the team to a number they
+              all agree on.
             </p>
           </div>
 
-          <SessionRoom
+          <DashboardShell
             displayName={fullName}
             initials={initialsFor(fullName)}
           />
