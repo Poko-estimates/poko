@@ -18,7 +18,7 @@ function DashboardShell({
 }) {
   const [games, setGames] = useState<Game[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [dialogOpen, setDialogOpen] = useState(true)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   const activeGame = games.find((game) => game.id === activeId) ?? null
 
