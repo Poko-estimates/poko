@@ -23,7 +23,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(34);
+select plan(35);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -81,6 +81,15 @@ select matches(
 select id as game_id, slug as game_slug
   from public.games where name = 'Sprint 24 refinement'
 \gset
+
+-- Creating a game seats its owner, so they can vote without following their
+-- own invite link first.
+select is(
+  (select display_name from public.game_participants
+    where user_id = :'owner_id'::uuid),
+  'Ama Owner',
+  'creating a game seats the owner, named from their account'
+);
 
 -- Deck validation is enforced by the database, not only by the create dialog.
 select throws_ok(

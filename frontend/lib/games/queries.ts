@@ -1,8 +1,10 @@
 import {
+  initialsFor,
   toGameDetail,
   toGameSummary,
-  type GameDetail,
   type GameSummary,
+  type RoomState,
+  type Seat,
 } from "@/lib/games/model"
 import { createClient } from "@/lib/supabase/server"
 
@@ -30,22 +32,71 @@ async function listGames(): Promise<GameSummary[]> {
   return data.map(toGameSummary)
 }
 
-/** One game by its slug, or null when it doesn't exist or isn't yours to see. */
-async function getGameBySlug(
+/**
+ * One game plus its table, or null when the slug is unknown or not yours.
+ *
+ * Three queries rather than one embedded select: `votes` has no direct foreign
+ * key to `games` (it hangs off the seat), and keeping them separate makes it
+ * obvious that the vote read is the one the blind-voting policy filters.
+ *
+ * That filtering is the important part. This code does not decide which cards
+ * you may see — it asks for all of them, and the database returns only your own
+ * until the round closes. If the policy were wrong, this query would quietly
+ * start returning everyone's cards, which is exactly why there is a pgTAP
+ * assertion on it rather than a check here.
+ */
+async function getRoomState(
   slug: string,
   userId: string
-): Promise<GameDetail | null> {
+): Promise<RoomState | null> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  const { data: game, error: gameError } = await supabase
     .from("games")
     .select("*")
     .eq("slug", slug)
     .maybeSingle()
 
-  if (error) throw new Error(`Could not load that game: ${error.message}`)
+  if (gameError) throw new Error(`Could not load that game: ${gameError.message}`)
+  if (!game) return null
 
-  return data ? toGameDetail(data, userId) : null
+  const [{ data: participants, error: seatError }, { data: votes, error: voteError }] =
+    await Promise.all([
+      supabase
+        .from("game_participants")
+        .select("*")
+        .eq("game_id", game.id)
+        .order("joined_at", { ascending: true }),
+      supabase
+        .from("votes")
+        .select("user_id, value")
+        .eq("game_id", game.id)
+        .eq("round", game.round),
+    ])
+
+  if (seatError) throw new Error(`Could not load the table: ${seatError.message}`)
+  if (voteError) throw new Error(`Could not load the cards: ${voteError.message}`)
+
+  const valueByUser = new Map((votes ?? []).map((v) => [v.user_id, v.value]))
+
+  const seats: Seat[] = (participants ?? []).map((row) => ({
+    userId: row.user_id,
+    displayName: row.display_name,
+    initials: initialsFor(row.display_name),
+    isOwner: row.user_id === game.owner_id,
+    isMe: row.user_id === userId,
+    // Comes from the seat, not the vote: it is readable by everyone at the
+    // table precisely because it carries no card value.
+    hasVoted: row.voted_round === game.round,
+    value: valueByUser.get(row.user_id) ?? null,
+  }))
+
+  return {
+    ...toGameDetail(game, userId),
+    seats,
+    me: seats.find((seat) => seat.isMe) ?? null,
+    votedCount: seats.filter((seat) => seat.hasVoted).length,
+  }
 }
 
-export { getGameBySlug, listGames }
+export { getRoomState, listGames }

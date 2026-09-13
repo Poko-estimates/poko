@@ -34,6 +34,33 @@ type GameDraft = {
 }
 
 /**
+ * One person at the table.
+ *
+ * `hasVoted` and `value` are deliberately separate. A null `value` is
+ * ambiguous on its own — it means either "hasn't picked a card yet" or "has
+ * picked one, and the round is still open so you aren't allowed to see it".
+ * Card back versus empty seat is the whole visual point of blind voting, so
+ * never collapse these two fields into one.
+ */
+type Seat = {
+  userId: string
+  displayName: string
+  initials: string
+  isOwner: boolean
+  isMe: boolean
+  hasVoted: boolean
+  value: string | null
+}
+
+/** Everything the room renders from. */
+type RoomState = GameDetail & {
+  seats: Seat[]
+  /** The signed-in player's own seat. */
+  me: Seat | null
+  votedCount: number
+}
+
+/**
  * Narrows the row's `text` status to the union above. Throws rather than
  * defaulting: reaching here with anything else means the CHECK constraint and
  * this code have diverged, which is a bug worth surfacing loudly instead of
@@ -69,5 +96,23 @@ function toGameDetail(row: GameRow, userId: string): GameDetail {
   }
 }
 
-export { gameStatuses, toGameDetail, toGameStatus, toGameSummary }
-export type { Deck, GameDetail, GameDraft, GameRow, GameStatus, GameSummary }
+/** Two-letter seat label: "Jane Doe" -> "JD", "jane.doe" -> "JD". */
+function initialsFor(name: string) {
+  const parts = name.split(/[\s.\-_+]/).filter(Boolean)
+  const letters =
+    parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : name.slice(0, 2)
+
+  return letters.toUpperCase()
+}
+
+export { gameStatuses, initialsFor, toGameDetail, toGameStatus, toGameSummary }
+export type {
+  Deck,
+  GameDetail,
+  GameDraft,
+  GameRow,
+  GameStatus,
+  GameSummary,
+  RoomState,
+  Seat,
+}

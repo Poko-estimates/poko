@@ -59,6 +59,120 @@ export async function createGame(draft: GameDraft): Promise<CreateGameResult> {
   return { slug: data.slug }
 }
 
+/**
+ * Puts your card down, or moves it if you already had one.
+ *
+ * Everything that decides whether this is legal right now — round still open,
+ * deadline not passed, value actually in the deck, round not reopened
+ * underneath you — lives in the guard trigger, which raises a distinct `hint`
+ * for each case. That is deliberate: those are expected, user-facing
+ * conditions, not authorization failures.
+ */
+export async function castVote(
+  gameId: string,
+  round: number,
+  value: string
+): Promise<GameResult> {
+  const supabase = await createClient()
+
+  // Insert first, then fall back to an update, rather than one upsert.
+  //
+  // PostgREST's ON CONFLICT DO UPDATE assigns every column in the payload, so
+  // an upsert needs UPDATE on game_id and round as well as value — and the
+  // client deliberately only holds UPDATE on `value`, so that a card can never
+  // be moved to a different round or a different game. One extra round trip
+  // when changing your mind is the right price for that narrower grant.
+  //
+  // user_id is absent from both calls on purpose: it defaults to auth.uid()
+  // and the client holds no grant on it, so nobody can vote as someone else.
+  const insert = await supabase
+    .from("votes")
+    .insert({ game_id: gameId, round, value })
+
+  if (!insert.error) {
+    revalidateGame()
+    return {}
+  }
+
+  // 23505 means this player already has a card down for this round.
+  if (insert.error.code !== "23505") {
+    return { formError: describe(insert.error) }
+  }
+
+  // RLS narrows this to your own row; there is no need — and no way — to name
+  // the user.
+  const { error } = await supabase
+    .from("votes")
+    .update({ value })
+    .eq("game_id", gameId)
+    .eq("round", round)
+
+  if (error) return { formError: describe(error) }
+
+  revalidateGame()
+  return {}
+}
+
+/** Takes your card back off the table. */
+export async function retractVote(
+  gameId: string,
+  round: number
+): Promise<GameResult> {
+  const supabase = await createClient()
+
+  // RLS narrows this to your own row; there is no way to clear anyone else's.
+  const { error } = await supabase
+    .from("votes")
+    .delete()
+    .eq("game_id", gameId)
+    .eq("round", round)
+
+  if (error) return { formError: describe(error) }
+
+  revalidateGame()
+  return {}
+}
+
+/**
+ * Ends the round and reveals every card at once.
+ *
+ * The estimate is not passed in — `close_round` works it out, and records one
+ * only if every card matches. An estimate the team did not agree on is not an
+ * estimate.
+ */
+export async function closeRound(gameId: string): Promise<GameResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase.rpc("close_round", { p_game_id: gameId })
+  if (error) return { formError: describe(error) }
+
+  revalidateGame()
+  return {}
+}
+
+/** Starts a fresh pass. The previous round's cards are kept, not deleted. */
+export async function reopenRound(gameId: string): Promise<GameResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase.rpc("reopen_round", { p_game_id: gameId })
+  if (error) return { formError: describe(error) }
+
+  revalidateGame()
+  return {}
+}
+
+/**
+ * Re-renders the dashboard so the server's view of the round wins.
+ *
+ * Needed on the vote path today because a card can close the round out from
+ * under the person who played it. Step 6 replaces this with the realtime
+ * broadcast, which tells every client at once instead of only the one that
+ * acted.
+ */
+function revalidateGame() {
+  revalidatePath("/dashboard")
+}
+
 /** Trim, drop blanks, drop repeats — mirrors the deck CHECK on `games`. */
 function normaliseDeckValues(values: string[]) {
   const seen = new Set<string>()

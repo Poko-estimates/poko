@@ -770,6 +770,35 @@ create trigger games_before_insert
 before insert on public.games
 for each row execute function private.poko_games_before_insert();
 
+-- A game always has its owner at the table.
+--
+-- Votes hang off a seat, not off an account, so without this the person who
+-- created the game could not vote in it — they would have to follow their own
+-- invite link first. Doing it here rather than in the application keeps
+-- "created it" and "is seated at it" from ever drifting apart, and puts both
+-- writes in one transaction.
+--
+-- Must be security definer: game_participants has no INSERT policy and no
+-- INSERT grant, because join_game is otherwise the only door in.
+create or replace function private.poko_games_after_insert()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.game_participants (game_id, user_id, display_name)
+  values (new.id, new.owner_id, private.poko_display_name_for(new.owner_id))
+  on conflict (game_id, user_id) do nothing;
+
+  return null;
+end;
+$$;
+
+create trigger games_after_insert
+after insert on public.games
+for each row execute function private.poko_games_after_insert();
+
 -- A seat leaving can be the thing that completes a round: if three of four
 -- have voted and the fourth walks out, the room must not hang forever waiting
 -- for someone who left.

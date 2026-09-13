@@ -7,7 +7,7 @@ import { SignOutButton } from "@/components/dashboard/sign-out-button"
 import { WelcomeAlert } from "@/components/dashboard/welcome-alert"
 import { Container } from "@/components/site/container"
 import { Logo } from "@/components/site/logo"
-import { getGameBySlug, listGames } from "@/lib/games/queries"
+import { getRoomState, listGames } from "@/lib/games/queries"
 import { createClient } from "@/lib/supabase/server"
 
 export const metadata: Metadata = {
@@ -35,7 +35,7 @@ export default async function Page({ searchParams }: PageProps<"/dashboard">) {
       ? requested
       : games[0]?.slug) ?? null
 
-  const activeGame = activeSlug ? await getGameBySlug(activeSlug, userId) : null
+  const room = activeSlug ? await getRoomState(activeSlug, userId) : null
 
   return (
     <div className="flex flex-1 flex-col bg-surface">
@@ -66,13 +66,7 @@ export default async function Page({ searchParams }: PageProps<"/dashboard">) {
           </div>
 
           <DashboardShell games={games} activeSlug={activeSlug}>
-            {activeGame && (
-              <SessionRoom
-                game={activeGame}
-                displayName={fullName}
-                initials={initialsFor(fullName)}
-              />
-            )}
+            {room && <SessionRoom room={room} />}
           </DashboardShell>
         </Container>
       </main>
@@ -91,13 +85,4 @@ function readFullName(claims: Record<string, unknown> | undefined) {
 
 function firstNameOf(name: string) {
   return name.split(/\s+/)[0]
-}
-
-/** Two-letter seat label: "Jane Doe" -> "JD", "jane.doe" -> "JD". */
-function initialsFor(name: string) {
-  const parts = name.split(/[\s.\-_+]/).filter(Boolean)
-  const letters =
-    parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : name.slice(0, 2)
-
-  return letters.toUpperCase()
 }
