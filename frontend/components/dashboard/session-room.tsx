@@ -1,36 +1,33 @@
 "use client"
 
-import { Lock, RotateCcw, Timer, Users } from "lucide-react"
+import { useState } from "react"
+import { Lock, Timer, Users } from "lucide-react"
 
 import { InviteLink } from "@/components/dashboard/invite-link"
-import { Button } from "@/components/ui/button"
-import { slugify } from "@/lib/decks"
-import type { Game } from "@/lib/games"
+import type { GameDetail } from "@/lib/games/model"
 import { cn } from "@/lib/utils"
 
 /**
- * The live estimation room for one game. Until someone joins through the invite
- * link the only seat at the table is yours — picking a card puts it down,
- * picking it again takes it back, and closing the round puts the estimate on
- * record.
+ * The live estimation room for one game.
+ *
+ * The game itself is real and persisted; the card you pick is not yet. Votes
+ * become rows (and the round starts closing itself) in the next step, at which
+ * point `myVote` here is replaced by the seat's stored vote and the settle
+ * controls come back wired to real actions. Until then this deliberately shows
+ * no close button rather than one that only moves local state.
  */
 function SessionRoom({
   displayName,
   game,
   initials,
-  onCloseVoting,
-  onReopenVoting,
-  onVote,
 }: {
   displayName: string
-  game: Game
+  game: GameDetail
   initials: string
-  onCloseVoting: () => void
-  onReopenVoting: () => void
-  onVote: (value: string | null) => void
 }) {
+  const [myVote, setMyVote] = useState<string | null>(null)
+
   const deck = game.deck.values
-  const slug = slugify(game.name)
   const closed = game.status === "closed"
 
   return (
@@ -43,7 +40,7 @@ function SessionRoom({
           <span className="size-2.5 rounded-full bg-white/25" />
         </div>
         <p className="min-w-0 truncate font-mono text-xs text-white/60">
-          poko.app/room/{slug}
+          poko.app/room/{game.slug}
         </p>
         {closed ? (
           <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[0.6875rem] font-semibold tracking-wide text-white/70 uppercase">
@@ -67,7 +64,8 @@ function SessionRoom({
                 {game.deck.name}
               </span>
               <span className="text-xs text-muted-foreground">
-                {deck.length} cards · everyone votes, then the table flips
+                {deck.length} cards
+                {game.round > 1 ? ` · round ${game.round}` : ""}
               </span>
             </div>
             <h2 className="mt-2 text-lg font-semibold text-primary sm:text-xl">
@@ -76,13 +74,15 @@ function SessionRoom({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 font-mono text-xs font-medium text-primary">
-              <Timer className="size-3.5 text-secondary" aria-hidden="true" />
-              01:12
-            </span>
+            {game.timeboxSeconds !== null && (
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 font-mono text-xs font-medium text-primary">
+                <Timer className="size-3.5 text-secondary" aria-hidden="true" />
+                {formatTimebox(game.timeboxSeconds)}
+              </span>
+            )}
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-primary">
               <Users className="size-3.5 text-secondary" aria-hidden="true" />
-              {game.vote ? "1" : "0"}/1
+              {myVote ? "1" : "0"}/1
             </span>
           </div>
         </div>
@@ -93,12 +93,12 @@ function SessionRoom({
             <div
               className={cn(
                 "flex h-20 w-15 shrink-0 items-center justify-center rounded-xl px-1 text-center text-xl font-semibold tabular-nums",
-                game.vote
+                myVote
                   ? "bg-primary text-white"
                   : "border-2 border-dashed border-border bg-card text-muted-foreground"
               )}
             >
-              {game.vote ?? (
+              {myVote ?? (
                 <span className="flex gap-0.5" aria-hidden="true">
                   <span className="size-1.5 rounded-full bg-current" />
                   <span className="size-1.5 rounded-full bg-current" />
@@ -115,40 +115,26 @@ function SessionRoom({
                 <span className="truncate">You</span>
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {game.vote ? `Card down: ${game.vote}` : "Still choosing"}
+                {myVote ? `Card down: ${myVote}` : "Still choosing"}
               </p>
               <span className="sr-only">
-                {game.vote
-                  ? `${displayName} voted ${game.vote}`
+                {myVote
+                  ? `${displayName} voted ${myVote}`
                   : `${displayName} is still voting`}
               </span>
             </div>
           </div>
 
           <div className="min-w-0 flex-1 sm:border-l sm:border-border sm:pl-6">
-            {closed ? (
-              <>
-                <p className="text-sm font-medium text-primary">
-                  Voting is closed
-                </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                  This round is on record. Reopen it if the team wants another
-                  pass.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-medium text-primary">
-                  You&apos;re the only one at the table
-                </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                  Send this link to whoever should be estimating with you.
-                </p>
-                <div className="mt-2.5">
-                  <InviteLink slug={slug} />
-                </div>
-              </>
-            )}
+            <p className="text-sm font-medium text-primary">
+              You&apos;re the only one at the table
+            </p>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+              Send this link to whoever should be estimating with you.
+            </p>
+            <div className="mt-2.5">
+              <InviteLink slug={game.slug} />
+            </div>
           </div>
         </div>
 
@@ -159,7 +145,7 @@ function SessionRoom({
           </p>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
             {deck.map((value) => {
-              const selected = value === game.vote
+              const selected = value === myVote
 
               return (
                 <button
@@ -167,7 +153,7 @@ function SessionRoom({
                   type="button"
                   disabled={closed}
                   aria-pressed={selected}
-                  onClick={() => onVote(selected ? null : value)}
+                  onClick={() => setMyVote(selected ? null : value)}
                   className={cn(
                     "flex h-16 items-center justify-center rounded-xl border px-1 text-center text-base font-semibold tabular-nums transition-all outline-none focus-visible:ring-3 focus-visible:ring-secondary/50",
                     selected
@@ -188,47 +174,25 @@ function SessionRoom({
           </div>
         </div>
 
-        {/* Settling the round */}
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface px-4 py-4">
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">
-              {closed ? "Saved estimate" : "This round"}
-            </p>
+        {closed && (
+          <div className="rounded-2xl border border-border bg-surface px-4 py-4">
+            <p className="text-xs text-muted-foreground">Saved estimate</p>
             <p className="text-sm font-semibold text-primary">
-              {closed
-                ? `${game.estimate} · ${game.deck.name}`
-                : game.vote
-                  ? "Ready to close — your card is down"
-                  : "Pick a card to settle the round"}
+              {game.estimate ?? "No consensus — the team re-votes"}
             </p>
           </div>
-
-          {closed ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={onReopenVoting}
-            >
-              <RotateCcw className="size-4" aria-hidden="true" />
-              Reopen voting
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="default"
-              size="lg"
-              disabled={game.vote === null}
-              onClick={onCloseVoting}
-            >
-              <Lock className="size-4" aria-hidden="true" />
-              Close voting &amp; save
-            </Button>
-          )}
-        </div>
+        )}
       </div>
     </section>
   )
+}
+
+/** "90" -> "1:30", "300" -> "5:00". */
+function formatTimebox(seconds: number) {
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds % 60
+
+  return `${minutes}:${String(rest).padStart(2, "0")}`
 }
 
 export { SessionRoom }

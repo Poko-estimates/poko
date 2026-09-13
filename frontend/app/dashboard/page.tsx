@@ -2,15 +2,17 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
+import { SessionRoom } from "@/components/dashboard/session-room"
 import { SignOutButton } from "@/components/dashboard/sign-out-button"
 import { WelcomeAlert } from "@/components/dashboard/welcome-alert"
 import { Container } from "@/components/site/container"
 import { Logo } from "@/components/site/logo"
+import { getGameBySlug, listGames } from "@/lib/games/queries"
 import { createClient } from "@/lib/supabase/server"
 
 export const metadata: Metadata = {
-  title: "Your session",
-  description: "Your live Poko estimation room.",
+  title: "Your games",
+  description: "Your live Poko estimation rooms.",
 }
 
 export default async function Page({ searchParams }: PageProps<"/dashboard">) {
@@ -18,14 +20,22 @@ export default async function Page({ searchParams }: PageProps<"/dashboard">) {
   const { data } = await supabase.auth.getClaims()
   const claims = data?.claims
   const email = typeof claims?.email === "string" ? claims.email : null
+  const userId = typeof claims?.sub === "string" ? claims.sub : null
 
-  // The proxy already guards this route; this keeps the page correct on its own.
-  if (!email) redirect("/login")
+  if (!email || !userId) redirect("/login")
 
-  const { welcome } = await searchParams
-  // Falls back to the email handle for accounts created before names were
-  // collected. Display only — never an authorization signal.
+  const { game, welcome } = await searchParams
+
   const fullName = readFullName(claims) || email.split("@")[0]
+
+  const games = await listGames()
+  const requested = typeof game === "string" ? game : null
+  const activeSlug =
+    (requested && games.some((row) => row.slug === requested)
+      ? requested
+      : games[0]?.slug) ?? null
+
+  const activeGame = activeSlug ? await getGameBySlug(activeSlug, userId) : null
 
   return (
     <div className="flex flex-1 flex-col bg-surface">
@@ -55,10 +65,15 @@ export default async function Page({ searchParams }: PageProps<"/dashboard">) {
             </p>
           </div>
 
-          <DashboardShell
-            displayName={fullName}
-            initials={initialsFor(fullName)}
-          />
+          <DashboardShell games={games} activeSlug={activeSlug}>
+            {activeGame && (
+              <SessionRoom
+                game={activeGame}
+                displayName={fullName}
+                initials={initialsFor(fullName)}
+              />
+            )}
+          </DashboardShell>
         </Container>
       </main>
     </div>

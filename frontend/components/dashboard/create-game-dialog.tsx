@@ -1,10 +1,11 @@
 "use client"
 
-import { useId, useState } from "react"
+import { useId, useState, useTransition } from "react"
 import { Form } from "@base-ui/react/form"
 import { Radio } from "@base-ui/react/radio"
 import { RadioGroup } from "@base-ui/react/radio-group"
 
+import { FormAlert } from "@/components/auth/form-alert"
 import { DeckPreview } from "@/components/dashboard/deck-preview"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,22 +25,42 @@ import {
   minDeckValues,
   parseDeckValues,
 } from "@/lib/decks"
-import type { GameDraft } from "@/lib/games"
+import { createGame } from "@/lib/games/actions"
 import { cn } from "@/lib/utils"
 
 const customDeckId = "custom"
 
+/**
+ * Preset lengths rather than a seconds input: no unit ambiguity, no validation
+ * surface, and it matches how the deck is already chosen.
+ */
+const timeboxOptions = [
+  { id: "60", label: "1 min", seconds: 60 },
+  { id: "120", label: "2 min", seconds: 120 },
+  { id: "300", label: "5 min", seconds: 300 },
+  { id: "none", label: "No limit", seconds: null },
+] as const
+
 type CreateGameDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreate: (draft: GameDraft) => void
+  /** Called with the new game's slug once the database has it. */
+  onCreated: (slug: string) => void
 }
 
-function CreateGameDialog({ open, onCreate, onOpenChange }: CreateGameDialogProps) {
+function CreateGameDialog({
+  open,
+  onCreated,
+  onOpenChange,
+}: CreateGameDialogProps) {
   const deckLabelId = useId()
+  const timeboxLabelId = useId()
 
+  const [pending, startTransition] = useTransition()
+  const [formError, setFormError] = useState<string | null>(null)
   const [name, setName] = useState("")
   const [deckId, setDeckId] = useState<string>(deckPresets[0].id)
+  const [timeboxId, setTimeboxId] = useState<string>("none")
   const [customName, setCustomName] = useState("")
   const [customValues, setCustomValues] = useState("")
 
@@ -50,8 +71,10 @@ function CreateGameDialog({ open, onCreate, onOpenChange }: CreateGameDialogProp
     onOpenChange(next)
 
     if (!next) {
+      setFormError(null)
       setName("")
       setDeckId(deckPresets[0].id)
+      setTimeboxId("none")
       setCustomName("")
       setCustomValues("")
     }
@@ -59,15 +82,27 @@ function CreateGameDialog({ open, onCreate, onOpenChange }: CreateGameDialogProp
 
   function handleSubmit() {
     const preset = deckPresets.find((option) => option.id === deckId)
+    const timebox = timeboxOptions.find((option) => option.id === timeboxId)
 
-    onCreate({
-      name: name.trim(),
-      deck: preset
-        ? { name: preset.name, values: preset.values }
-        : { name: customName.trim(), values: customCards },
+    setFormError(null)
+
+    startTransition(async () => {
+      const result = await createGame({
+        name: name.trim(),
+        deck: preset
+          ? { name: preset.name, values: preset.values }
+          : { name: customName.trim(), values: customCards },
+        timeboxSeconds: timebox?.seconds ?? null,
+      })
+
+      if (result.formError) {
+        setFormError(result.formError)
+        return
+      }
+
+      // The dialog closes only once the game actually exists.
+      if (result.slug) onCreated(result.slug)
     })
-
-    handleOpenChange(false)
   }
 
   return (
@@ -85,6 +120,8 @@ function CreateGameDialog({ open, onCreate, onOpenChange }: CreateGameDialogProp
           </DialogHeader>
 
           <DialogBody className="flex flex-col gap-6">
+            {formError && <FormAlert>{formError}</FormAlert>}
+
             <Field name="gameName">
               <FieldLabel>Game name</FieldLabel>
               <EmojiInput
@@ -99,6 +136,48 @@ function CreateGameDialog({ open, onCreate, onOpenChange }: CreateGameDialogProp
                 Give the game a name your team will recognise.
               </FieldError>
             </Field>
+
+            <div className="flex flex-col gap-2.5">
+              <div>
+                <p
+                  id={timeboxLabelId}
+                  className="text-sm font-medium text-primary"
+                >
+                  Timebox
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  The round closes on its own once everyone has voted — the
+                  clock just keeps things moving.
+                </p>
+              </div>
+
+              <RadioGroup
+                aria-labelledby={timeboxLabelId}
+                value={timeboxId}
+                onValueChange={(value) => setTimeboxId(String(value))}
+                className="flex flex-wrap gap-2"
+              >
+                {timeboxOptions.map((option) => (
+                  <label
+                    key={option.id}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-colors",
+                      timeboxId === option.id
+                        ? "border-secondary bg-secondary/10 font-medium text-primary"
+                        : "border-border bg-card text-muted-foreground hover:border-secondary/50"
+                    )}
+                  >
+                    <Radio.Root
+                      value={option.id}
+                      className="flex size-4 shrink-0 items-center justify-center rounded-full border border-input bg-card transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 data-checked:border-secondary data-checked:bg-secondary"
+                    >
+                      <Radio.Indicator className="size-1.5 rounded-full bg-primary data-unchecked:hidden" />
+                    </Radio.Root>
+                    {option.label}
+                  </label>
+                ))}
+              </RadioGroup>
+            </div>
 
             <div className="flex flex-col gap-3">
               <div>
@@ -210,12 +289,18 @@ function CreateGameDialog({ open, onCreate, onOpenChange }: CreateGameDialogProp
               type="button"
               variant="outline"
               size="xl"
+              disabled={pending}
               onClick={() => handleOpenChange(false)}
             >
               Cancel
             </Button>
-            <Button type="submit" variant="secondary" size="xl">
-              Create game
+            <Button
+              type="submit"
+              variant="secondary"
+              size="xl"
+              disabled={pending}
+            >
+              {pending ? "Creating…" : "Create game"}
             </Button>
           </DialogFooter>
         </Form>

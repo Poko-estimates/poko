@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+import type { Database } from "@/lib/supabase/database.types"
+
 /**
  * Routes that require a signed-in user. Everything else is public — this is a
  * marketing site with an auth flow bolted on, not an app behind a login wall.
@@ -25,7 +27,9 @@ export async function updateSession(request: NextRequest) {
 
   // With Fluid compute, don't put this client in a global environment
   // variable. Always create a new one on each request.
-  const supabase = createServerClient(
+  // This client only ever touches `auth`, so the generic is cosmetic here —
+  // threaded anyway so nobody has to wonder which of the three is typed.
+  const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {

@@ -1,22 +1,25 @@
-"use client"
+   "use client"
 
+import Link from "next/link"
 import { CheckCircle2, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import type { Game } from "@/lib/games"
+import type { GameSummary } from "@/lib/games/model"
 import { cn } from "@/lib/utils"
 
-/** The list of rounds this session has created, newest first. */
+/**
+ * The list of games, newest first. Selection lives in the URL rather than in
+ * component state, so it survives a reload, can be linked to, and lets the
+ * server render the room for the chosen game.
+ */
 function GamesPanel({
-  activeId,
+  activeSlug,
   games,
   onCreate,
-  onSelect,
 }: {
-  activeId: string | null
-  games: Game[]
+  activeSlug: string | null
+  games: GameSummary[]
   onCreate: () => void
-  onSelect: (id: string) => void
 }) {
   const open = games.filter((game) => game.status === "voting").length
 
@@ -45,17 +48,17 @@ function GamesPanel({
         ) : (
           <ul className="flex flex-col gap-1.5">
             {games.map((game) => {
-              const active = game.id === activeId
+              const active = game.slug === activeSlug
               const closed = game.status === "closed"
 
               return (
                 <li key={game.id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelect(game.id)}
+                  <Link
+                    href={`/dashboard?game=${game.slug}`}
+                    prefetch
                     aria-current={active ? "true" : undefined}
                     className={cn(
-                      "w-full rounded-2xl border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                      "block rounded-2xl border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                       active
                         ? "border-secondary bg-secondary/10"
                         : "border-transparent bg-surface hover:border-secondary/40"
@@ -74,7 +77,7 @@ function GamesPanel({
                     </span>
 
                     <span className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                      <span className="truncate">{game.deck.name}</span>
+                      <span className="truncate">{game.deckName}</span>
                       <span aria-hidden="true">·</span>
                       <span
                         className={cn(
@@ -82,10 +85,14 @@ function GamesPanel({
                           closed ? "text-primary" : "text-muted-foreground"
                         )}
                       >
-                        {closed ? `Saved ${game.estimate}` : "Voting"}
+                        {closed
+                          ? game.estimate
+                            ? `Saved ${game.estimate}`
+                            : "No consensus"
+                          : "Voting"}
                       </span>
                     </span>
-                  </button>
+                  </Link>
                 </li>
               )
             })}

@@ -93,7 +93,12 @@ create table public.games (
   owner_id               uuid not null default auth.uid()
                            references auth.users (id) on delete cascade,
   name                   text not null,
-  slug                   text not null unique,
+  -- The default is never the value that survives: poko_games_before_insert
+  -- always regenerates the slug from `name`. It exists so the column is `not
+  -- null` WITH a default, which is what makes `slug` optional in generated
+  -- TypeScript Insert types — otherwise every caller would have to invent one
+  -- and cast around a value the database owns.
+  slug                   text not null unique default private.poko_slug('room'),
 
   deck_name              text not null,
   deck_values            text[] not null,
@@ -298,6 +303,9 @@ revoke all on function private.is_game_owner(uuid)              from public;
 revoke all on function private.round_is_revealed(uuid, integer)  from public;
 
 grant usage on schema private to authenticated;
+-- Needed because it backs the `slug` column default, which is evaluated as the
+-- inserting role. Pure string generator, no data access.
+grant execute on function private.poko_slug(text)                 to authenticated;
 grant execute on function private.is_game_participant(uuid)       to authenticated;
 grant execute on function private.is_game_owner(uuid)             to authenticated;
 grant execute on function private.round_is_revealed(uuid, integer) to authenticated;
@@ -735,17 +743,18 @@ as $$
 declare
   v_attempt integer := 0;
 begin
-  if new.slug is null or btrim(new.slug) = '' then
-    loop
-      v_attempt := v_attempt + 1;
-      new.slug := private.poko_slug(new.name);
-      exit when not exists (select 1 from public.games g where g.slug = new.slug);
-      if v_attempt >= 5 then
-        raise exception 'poko: could not allocate a unique slug'
-          using errcode = 'P0001', hint = 'poko_slug_exhausted';
-      end if;
-    end loop;
-  end if;
+  -- Always regenerated from the name, whatever the column default or the
+  -- caller supplied: the slug is a capability token, so the client must never
+  -- get to choose it.
+  loop
+    v_attempt := v_attempt + 1;
+    new.slug := private.poko_slug(new.name);
+    exit when not exists (select 1 from public.games g where g.slug = new.slug);
+    if v_attempt >= 5 then
+      raise exception 'poko: could not allocate a unique slug'
+        using errcode = 'P0001', hint = 'poko_slug_exhausted';
+    end if;
+  end loop;
 
   new.round_started_at := now();
   new.round_ends_at := case

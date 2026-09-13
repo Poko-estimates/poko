@@ -81,7 +81,7 @@ export type Database = {
           round_duration_seconds?: number | null
           round_ends_at?: string | null
           round_started_at?: string
-          slug: string
+          slug?: string
           status?: string
           updated_at?: string
         }
