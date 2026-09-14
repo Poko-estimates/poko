@@ -1,10 +1,11 @@
 "use client"
 
 import { startTransition, useOptimistic, useState } from "react"
-import { Lock, RotateCcw, Timer, Users } from "lucide-react"
+import { Lock, RotateCcw, Users } from "lucide-react"
 
 import { FormAlert } from "@/components/auth/form-alert"
 import { InviteLink } from "@/components/dashboard/invite-link"
+import { RoundTimer } from "@/components/dashboard/round-timer"
 import { Seat } from "@/components/dashboard/seat"
 import { Button } from "@/components/ui/button"
 import {
@@ -58,6 +59,23 @@ function SessionRoom({ room }: { room: RoomState }) {
       if (result.formError) {
         startTransition(() => setError(result.formError ?? null))
       }
+    })
+  }
+
+  /**
+   * Fired by the countdown reaching zero. Any participant may close an expired
+   * round — at that point the clock is the authority, not a person, and it is a
+   * fact the database re-checks rather than a claim the client makes.
+   *
+   * Errors are swallowed on purpose. Every open tab's timer fires at roughly
+   * the same moment, so all but the first will find the round already closed;
+   * and a browser whose clock runs fast will be told it isn't expired yet.
+   * Both are expected and neither is worth a message — the round simply stays
+   * open until a clock the server agrees with catches up.
+   */
+  function closeOnExpiry() {
+    startTransition(async () => {
+      await closeRound(room.id)
     })
   }
 
@@ -116,11 +134,8 @@ function SessionRoom({ room }: { room: RoomState }) {
           </div>
 
           <div className="flex items-center gap-2">
-            {room.timeboxSeconds !== null && (
-              <span className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 font-mono text-xs font-medium text-primary">
-                <Timer className="size-3.5 text-secondary" aria-hidden="true" />
-                {formatTimebox(room.timeboxSeconds)}
-              </span>
+            {!closed && room.roundEndsAt && (
+              <RoundTimer deadline={room.roundEndsAt} onExpire={closeOnExpiry} />
             )}
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-primary">
               <Users className="size-3.5 text-secondary" aria-hidden="true" />
@@ -241,14 +256,6 @@ function SessionRoom({ room }: { room: RoomState }) {
       </div>
     </section>
   )
-}
-
-/** "90" -> "1:30", "300" -> "5:00". */
-function formatTimebox(seconds: number) {
-  const minutes = Math.floor(seconds / 60)
-  const rest = seconds % 60
-
-  return `${minutes}:${String(rest).padStart(2, "0")}`
 }
 
 export { SessionRoom }
