@@ -390,6 +390,10 @@ function describe(error: { code?: string; hint?: string | null; message: string 
       return "Only the person who created the game can do that."
     case "poko_no_timebox":
       return "This game has no timebox to start."
+    case "poko_game_closed":
+      return "Reopen the round before editing this game."
+    case "poko_deck_locked":
+      return "Cards are already down — the deck can't change mid-round."
     case "poko_room_missing":
       return "That invite link doesn't match a game."
     case "poko_not_signed_in":
