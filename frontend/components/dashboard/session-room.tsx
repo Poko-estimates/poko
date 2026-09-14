@@ -1,27 +1,69 @@
 "use client"
 
 import { startTransition, useOptimistic, useState } from "react"
-import { Lock, RotateCcw, Users } from "lucide-react"
+import { Lock, Play, RotateCcw, Timer, Users } from "lucide-react"
 
-import { FormAlert } from "@/components/auth/form-alert"
 import { InviteLink } from "@/components/dashboard/invite-link"
+import { RoundOverNotice } from "@/components/dashboard/round-over-notice"
 import { RoundTimer } from "@/components/dashboard/round-timer"
 import { Seat } from "@/components/dashboard/seat"
 import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/toast"
 import {
   castVote,
   closeRound,
   reopenRound,
   retractVote,
+  startRound,
+  type GameResult,
 } from "@/lib/games/actions"
 import type { RoomState } from "@/lib/games/model"
+import { formatSeconds } from "@/lib/rooms/clock"
+import { useCountdown } from "@/lib/rooms/use-countdown"
 import { useCoalescedRefresh } from "@/lib/rooms/use-coalesced-refresh"
 import { useRoomChannel } from "@/lib/rooms/use-room-channel"
 import { cn } from "@/lib/utils"
 
+type Burst = {
+  message: string
+  variant: "consensus" | "timeout"
+}
+
+/**
+ * Decides whether a round closing is worth marking, from the `round_closed`
+ * payload the closing transaction built.
+ *
+ * A split vote gets nothing. The cards flipping already shows the
+ * disagreement, and that is a prompt to talk rather than something to
+ * celebrate — the footer says so in words.
+ */
+function describeClose(payload: Record<string, unknown>): Burst | null {
+  const estimate =
+    typeof payload.estimate === "string" && payload.estimate.trim()
+      ? payload.estimate
+      : null
+
+  // "Unanimous" is only honest when everybody actually voted, and
+  // `all_voted` is the database saying precisely that. A round closed early or
+  // on the clock can still carry an estimate — every card that was cast
+  // agreed — but with empty seats that is one person's guess, not the team's.
+  if (payload.closed_reason === "all_voted" && estimate) {
+    return { message: `Unanimous — ${estimate}`, variant: "consensus" }
+  }
+
+  if (payload.closed_reason === "timeout") {
+    // No confetti here: with seats still empty, not every card is on the
+    // table, and running out of time is not an achievement.
+    return { message: "Time's up — voting is closed", variant: "timeout" }
+  }
+
+  return null
+}
+
 /** The live estimation room for one game. */
 function SessionRoom({ room }: { room: RoomState }) {
-  const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
+  const [burst, setBurst] = useState<Burst | null>(null)
 
   // Realtime is a signal, not a source: every event just asks the server for
   // the room again, so card values always come back through RLS.
@@ -29,7 +71,15 @@ function SessionRoom({ room }: { room: RoomState }) {
   const online = useRoomChannel({
     gameId: room.id,
     userId: room.me?.userId ?? "",
-    onEvent: refresh,
+    onEvent: (event) => {
+      refresh()
+
+      // The broadcast is the only reliable "it just happened" signal. Props
+      // alone can't distinguish a round that has this instant closed from one
+      // that was already closed when you opened it — and the second must not
+      // throw confetti every time you click through the sidebar.
+      if (event.type === "round_closed") setBurst(describeClose(event.payload))
+    },
   })
 
   // The optimistic base is the server's value, so when a revalidation lands
@@ -43,9 +93,17 @@ function SessionRoom({ room }: { room: RoomState }) {
   const deck = room.deck.values
   const alone = room.seats.length === 1
 
-  function play(value: string | null) {
-    setError(null)
+  // Subscribed here rather than inside each seat so there is one ticker for the
+  // table. It costs a re-render of this subtree per second while a timed round
+  // is open, which is cheap; `null` for an untimed round means no ticker runs
+  // at all. The timer chip keeps its own subscription so the 1Hz label change
+  // doesn't redraw the room.
+  const { remaining } = useCountdown(
+    !closed && room.roundEndsAt ? Date.parse(room.roundEndsAt) : null
+  )
+  const lastCall = remaining !== null && remaining > 0 && remaining <= 5
 
+  function play(value: string | null) {
     startTransition(async () => {
       setOptimisticVote(value)
 
@@ -54,10 +112,11 @@ function SessionRoom({ room }: { room: RoomState }) {
           ? await retractVote(room.id, room.round)
           : await castVote(room.id, room.round, value)
 
-      // State updates after an await are not automatically part of the
-      // transition, so they need their own.
+      // A rejected card is worth saying out loud: the optimistic value snaps
+      // back on its own, which without an explanation just looks like the tap
+      // didn't register.
       if (result.formError) {
-        startTransition(() => setError(result.formError ?? null))
+        toast.add({ type: "error", title: result.formError })
       }
     })
   }
@@ -79,14 +138,23 @@ function SessionRoom({ room }: { room: RoomState }) {
     })
   }
 
-  function settle(action: () => Promise<{ formError?: string }>) {
-    setError(null)
-
+  /**
+   * Runs one of the round controls and reports the outcome in a toast.
+   *
+   * `success` is omitted where the room itself is the confirmation — starting
+   * the clock swaps the button for a countdown, and a toast on top of that is
+   * just noise.
+   */
+  function run(action: () => Promise<GameResult>, success?: string) {
     startTransition(async () => {
       const result = await action()
+
       if (result.formError) {
-        startTransition(() => setError(result.formError ?? null))
+        toast.add({ type: "error", title: result.formError })
+        return
       }
+
+      if (success) toast.add({ type: "success", title: success })
     })
   }
 
@@ -108,12 +176,20 @@ function SessionRoom({ room }: { room: RoomState }) {
             Closed
           </span>
         ) : (
-          <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-secondary/15 px-2.5 py-1 text-[0.6875rem] font-semibold tracking-wide text-secondary uppercase">
-            <span className="size-1.5 rounded-full bg-secondary" />
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-success/15 px-2.5 py-1 text-[0.6875rem] font-semibold tracking-wide text-success uppercase">
+            <span className="size-1.5 rounded-full bg-success" />
             Live
           </span>
         )}
       </div>
+
+      {burst && (
+        <RoundOverNotice
+          message={burst.message}
+          variant={burst.variant}
+          onDone={() => setBurst(null)}
+        />
+      )}
 
       <div className="space-y-6 p-5 sm:p-8">
         {/* What the room is voting on */}
@@ -134,17 +210,38 @@ function SessionRoom({ room }: { room: RoomState }) {
           </div>
 
           <div className="flex items-center gap-2">
-            {!closed && room.roundEndsAt && (
-              <RoundTimer deadline={room.roundEndsAt} onExpire={closeOnExpiry} />
-            )}
+            {/* A timebox can exist without having been started. The owner gets
+                the button; everyone else sees how long it will be, so the
+                round's shape isn't a surprise when it begins. */}
+            {!closed &&
+              room.timeboxSeconds !== null &&
+              (room.roundEndsAt ? (
+                <RoundTimer
+                  deadline={room.roundEndsAt}
+                  onExpire={closeOnExpiry}
+                />
+              ) : room.isOwner ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  onClick={() => run(() => startRound(room.id))}
+                >
+                  <Play className="size-4" aria-hidden="true" />
+                  Start {formatSeconds(room.timeboxSeconds)} timer
+                </Button>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-xs font-medium text-muted-foreground">
+                  <Timer className="size-3.5" aria-hidden="true" />
+                  {formatSeconds(room.timeboxSeconds)} · not started
+                </span>
+              ))}
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-primary">
               <Users className="size-3.5 text-secondary" aria-hidden="true" />
               {room.votedCount}/{room.seats.length}
             </span>
           </div>
         </div>
-
-        {error && <FormAlert>{error}</FormAlert>}
 
         {/* The table */}
         <div className="flex flex-col gap-5 rounded-2xl bg-surface p-4 sm:p-5">
@@ -154,7 +251,10 @@ function SessionRoom({ room }: { room: RoomState }) {
                 <Seat
                   seat={seat}
                   revealed={closed}
-                  online={online.has(seat.userId)}
+                  // You having this page open is a fact, not something to wait
+                  // for a presence round-trip to confirm.
+                  online={seat.isMe || online.has(seat.userId)}
+                  urgent={lastCall}
                   optimisticVote={seat.isMe ? optimisticVote : undefined}
                 />
               </li>
@@ -235,7 +335,12 @@ function SessionRoom({ room }: { room: RoomState }) {
                 type="button"
                 variant="outline"
                 size="lg"
-                onClick={() => settle(() => reopenRound(room.id))}
+                onClick={() =>
+                  run(
+                    () => reopenRound(room.id),
+                    `Round ${room.round + 1} open — every card cleared`
+                  )
+                }
               >
                 <RotateCcw className="size-4" aria-hidden="true" />
                 Reopen voting
@@ -246,7 +351,9 @@ function SessionRoom({ room }: { room: RoomState }) {
                 variant="default"
                 size="lg"
                 disabled={room.votedCount === 0}
-                onClick={() => settle(() => closeRound(room.id))}
+                onClick={() =>
+                  run(() => closeRound(room.id), "Round closed — cards revealed")
+                }
               >
                 <Lock className="size-4" aria-hidden="true" />
                 Close voting now

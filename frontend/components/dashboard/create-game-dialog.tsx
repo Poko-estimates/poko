@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { EmojiInput } from "@/components/ui/emoji-input"
+import { useToast } from "@/components/ui/toast"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import {
   deckPresets,
@@ -56,7 +57,10 @@ function CreateGameDialog({
   const deckLabelId = useId()
   const timeboxLabelId = useId()
 
+  const toast = useToast()
   const [pending, startTransition] = useTransition()
+  // Kept inline rather than toasted: these are about the fields in front of
+  // you — a missing name, too few cards — so the message belongs beside them.
   const [formError, setFormError] = useState<string | null>(null)
   const [name, setName] = useState("")
   const [deckId, setDeckId] = useState<string>(deckPresets[0].id)
@@ -101,7 +105,10 @@ function CreateGameDialog({
       }
 
       // The dialog closes only once the game actually exists.
-      if (result.slug) onCreated(result.slug)
+      if (result.slug) {
+        toast.add({ type: "success", title: `“${name.trim()}” is on the table` })
+        onCreated(result.slug)
+      }
     })
   }
 

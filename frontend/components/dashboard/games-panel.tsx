@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { CheckCircle2, Plus } from "lucide-react"
 
+import { DeleteGameDialog } from "@/components/dashboard/delete-game-dialog"
 import { Button } from "@/components/ui/button"
 import type { GameSummary } from "@/lib/games/model"
 import { cn } from "@/lib/utils"
@@ -51,21 +52,31 @@ function GamesPanel({
               const active = game.slug === activeSlug
               const closed = game.status === "closed"
 
+              // The row's chrome lives on the <li>, so the delete control can
+              // sit beside the link rather than inside it — nesting one
+              // interactive element in another is invalid HTML and unusable by
+              // keyboard.
               return (
-                <li key={game.id}>
+                <li
+                  key={game.id}
+                  className={cn(
+                    "flex items-stretch rounded-2xl border transition-colors",
+                    active
+                      ? "border-secondary bg-secondary/10"
+                      : "border-transparent bg-surface hover:border-secondary/40"
+                  )}
+                >
                   <Link
                     href={`/dashboard?game=${game.slug}`}
                     prefetch
                     aria-current={active ? "true" : undefined}
-                    className={cn(
-                      "block rounded-2xl border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                      active
-                        ? "border-secondary bg-secondary/10"
-                        : "border-transparent bg-surface hover:border-secondary/40"
-                    )}
+                    className="min-w-0 flex-1 rounded-2xl px-3.5 py-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
-                    <span className="flex items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-primary">
+                    {/* No flex-1 on the name: it shrinks to its content (still
+                        truncating when long) so the played tick sits against
+                        the name rather than drifting to the far edge. */}
+                    <span className="flex items-center gap-1.5">
+                      <span className="min-w-0 truncate text-sm font-medium text-primary">
                         {game.name}
                       </span>
                       {closed && (
@@ -93,6 +104,10 @@ function GamesPanel({
                       </span>
                     </span>
                   </Link>
+
+                  {game.isOwner && (
+                    <DeleteGameDialog game={game} isActive={active} />
+                  )}
                 </li>
               )
             })}

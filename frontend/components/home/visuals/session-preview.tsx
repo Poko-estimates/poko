@@ -39,8 +39,8 @@ function SessionPreview() {
         <p className="min-w-0 truncate font-mono text-xs text-white/60">
           poko.app/room/atlas-sprint-24
         </p>
-        <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-secondary/15 px-2.5 py-1 text-[0.6875rem] font-semibold tracking-wide text-secondary uppercase">
-          <span className="size-1.5 rounded-full bg-secondary motion-safe:animate-breathe" />
+        <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-success/15 px-2.5 py-1 text-[0.6875rem] font-semibold tracking-wide text-success uppercase">
+          <span className="size-1.5 rounded-full bg-success motion-safe:animate-breathe" />
           Live
         </span>
       </div>

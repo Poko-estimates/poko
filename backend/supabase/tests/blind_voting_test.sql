@@ -23,7 +23,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(36);
+select plan(43);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -381,6 +381,56 @@ select lives_ok(
 
 
 -- ---------------------------------------------------------------------------
+-- The clock is started deliberately, not by creating the game
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+
+insert into public.games (name, deck_name, deck_values, round_duration_seconds)
+values ('Timed game', 'Fibonacci', array['1','2','3'], 60);
+
+select id as timed_id from public.games where name = 'Timed game'
+\gset
+
+select is(
+  (select round_ends_at from public.games where id = :'timed_id'::uuid),
+  null,
+  'creating a timed game does not start its clock'
+);
+
+select throws_ok(
+  format($$ select public.start_round(%L) $$, :'game_id'),
+  'P0001', null,
+  'a game with no timebox has no clock to start'
+);
+
+select pg_temp.act_as(:'player_id');
+select throws_ok(
+  format($$ select public.start_round(%L) $$, :'timed_id'),
+  42501, null,
+  'only the owner can start the clock'
+);
+
+select pg_temp.act_as(:'owner_id');
+select public.start_round(:'timed_id');
+
+select isnt(
+  (select round_ends_at from public.games where id = :'timed_id'::uuid),
+  null,
+  'start_round sets the deadline'
+);
+
+-- A second press must not quietly buy the round more time.
+select public.start_round(:'timed_id');
+
+select is(
+  (select round_ends_at from public.games where id = :'timed_id'::uuid),
+  (select round_started_at + make_interval(secs => round_duration_seconds)
+     from public.games where id = :'timed_id'::uuid),
+  'starting an already-running clock leaves the deadline where it was'
+);
+
+
+-- ---------------------------------------------------------------------------
 -- A game with votes can still be deleted
 --
 -- Deleting a game cascades to its votes, which fires the BEFORE DELETE guard
@@ -388,10 +438,29 @@ select lives_ok(
 -- game that had ever been voted in would fail — and so would deleting a user,
 -- which cascades to the games they own.
 -- ---------------------------------------------------------------------------
+-- A participant deleting is not an error, it simply matches no rows — which
+-- is why the action checks the returned count rather than trusting a silent
+-- success.
+select pg_temp.act_as(:'player_id');
+delete from public.games where id = :'game_id'::uuid;
+
+select pg_temp.act_as_postgres();
+select isnt_empty(
+  format($$ select 1 from public.games where id = %L $$, :'game_id'),
+  'a participant''s delete matches no rows — the game survives'
+);
+
 select pg_temp.act_as(:'owner_id');
 select lives_ok(
   format($$ delete from public.games where id = %L $$, :'game_id'),
   'a game that has votes can be deleted (cascade reaches the vote guard)'
+);
+
+select pg_temp.act_as_postgres();
+select is(
+  (select count(*)::int from public.votes where game_id = :'game_id'::uuid),
+  0,
+  'deleting a game takes its cards with it'
 );
 
 

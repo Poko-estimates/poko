@@ -18,8 +18,12 @@ import { createClient } from "@/lib/supabase/server"
  * than everything.
  */
 
-/** Games this user can see, newest first. */
-async function listGames(): Promise<GameSummary[]> {
+/**
+ * Games this user can see, newest first. RLS limits that to games they are
+ * seated at, which includes other people's — hence `userId`, so each row knows
+ * whether it is yours to delete.
+ */
+async function listGames(userId: string): Promise<GameSummary[]> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -29,7 +33,7 @@ async function listGames(): Promise<GameSummary[]> {
 
   if (error) throw new Error(`Could not load games: ${error.message}`)
 
-  return data.map(toGameSummary)
+  return data.map((row) => toGameSummary(row, userId))
 }
 
 /**

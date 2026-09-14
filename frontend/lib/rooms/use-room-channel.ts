@@ -2,6 +2,7 @@
 
 import { useEffect, useEffectEvent, useState } from "react"
 
+import { roomEvents, type RoomEvent } from "@/lib/rooms/events"
 import { createClient } from "@/lib/supabase/client"
 
 const EMPTY: ReadonlySet<string> = new Set()
@@ -26,7 +27,12 @@ function useRoomChannel({
   userId,
 }: {
   gameId: string
-  onEvent: () => void
+  /**
+   * Called for every inbound event. Treat it as a nudge to re-read from the
+   * server; the `type` is there so a caller can additionally react to a
+   * specific moment, like the round closing.
+   */
+  onEvent: (event: RoomEvent) => void
   userId: string
 }): ReadonlySet<string> {
   // The one genuinely client-owned piece of state: the server cannot see who
@@ -49,18 +55,17 @@ function useRoomChannel({
     // TOKEN_REFRESHED / SIGNED_IN / INITIAL_SESSION. Calling it by hand puts
     // the client into manual-token mode, and the channel would then die
     // silently about an hour in, when the JWT first expires.
-    const channel = supabase
-      .channel(`game:${gameId}`, {
-        config: { private: true, presence: { key: userId } },
+    const channel = supabase.channel(`game:${gameId}`, {
+      config: { private: true, presence: { key: userId } },
+    })
+
+    for (const type of roomEvents) {
+      channel.on("broadcast", { event: type }, ({ payload }) => {
+        handleEvent({ type, payload: (payload ?? {}) as Record<string, unknown> })
       })
-      .on("broadcast", { event: "vote_cast" }, () => handleEvent())
-      .on("broadcast", { event: "vote_cleared" }, () => handleEvent())
-      .on("broadcast", { event: "round_closed" }, () => handleEvent())
-      .on("broadcast", { event: "round_reopened" }, () => handleEvent())
-      .on("broadcast", { event: "participant_joined" }, () => handleEvent())
-      .on("broadcast", { event: "participant_left" }, () => handleEvent())
-      .on("broadcast", { event: "participant_renamed" }, () => handleEvent())
-      .on("broadcast", { event: "game_updated" }, () => handleEvent())
+    }
+
+    channel
       .on("presence", { event: "sync" }, () => {
         setOnline(new Set(Object.keys(channel.presenceState())))
       })
@@ -68,8 +73,10 @@ function useRoomChannel({
         if (status !== "SUBSCRIBED") return
 
         // A dropped socket loses messages silently, so reconcile on every
-        // (re)connect rather than trusting the stream to be complete.
-        handleEvent()
+        // (re)connect rather than trusting the stream to be complete. Sent as
+        // game_updated because it is a plain "re-read", not a moment worth
+        // announcing — a reconnect must not replay a celebration.
+        handleEvent({ type: "game_updated", payload: {} })
         void channel.track({ userId })
       })
 
