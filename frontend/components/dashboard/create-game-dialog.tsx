@@ -18,11 +18,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { EmojiInput } from "@/components/ui/emoji-input"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/toast"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import {
   deckPresets,
   maxDeckValues,
+  maxSummaryLength,
   minDeckValues,
   parseDeckValues,
 } from "@/lib/decks"
@@ -63,6 +65,7 @@ function CreateGameDialog({
   // you — a missing name, too few cards — so the message belongs beside them.
   const [formError, setFormError] = useState<string | null>(null)
   const [name, setName] = useState("")
+  const [summary, setSummary] = useState("")
   const [deckId, setDeckId] = useState<string>(deckPresets[0].id)
   const [timeboxId, setTimeboxId] = useState<string>("none")
   const [customName, setCustomName] = useState("")
@@ -77,6 +80,7 @@ function CreateGameDialog({
     if (!next) {
       setFormError(null)
       setName("")
+      setSummary("")
       setDeckId(deckPresets[0].id)
       setTimeboxId("none")
       setCustomName("")
@@ -93,6 +97,7 @@ function CreateGameDialog({
     startTransition(async () => {
       const result = await createGame({
         name: name.trim(),
+        summary: summary.trim() || null,
         deck: preset
           ? { name: preset.name, values: preset.values }
           : { name: customName.trim(), values: customCards },
@@ -144,6 +149,28 @@ function CreateGameDialog({
               </FieldError>
             </Field>
 
+            {/* Optional, and next to the name because it answers the same
+                question: what are we estimating? */}
+            <Field name="summary">
+              <FieldLabel>
+                Summary{" "}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </FieldLabel>
+              <Textarea
+                value={summary}
+                onValueChange={setSummary}
+                maxLength={maxSummaryLength}
+                rows={3}
+              />
+              <FieldDescription>
+                {summary.trim()
+                  ? `${maxSummaryLength - summary.trim().length} characters left`
+                  : "Skip it when the name says enough."}
+              </FieldDescription>
+            </Field>
+
             <div className="flex flex-col gap-2.5">
               <div>
                 <p
@@ -151,10 +178,6 @@ function CreateGameDialog({
                   className="text-sm font-medium text-primary"
                 >
                   Timebox
-                </p>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  The round closes on its own once everyone has voted — the
-                  clock just keeps things moving.
                 </p>
               </div>
 

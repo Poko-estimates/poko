@@ -207,6 +207,13 @@ function SessionRoom({ room }: { room: RoomState }) {
             <h2 className="mt-2 text-lg font-semibold text-primary sm:text-xl">
               {room.name}
             </h2>
+            {room.summary && (
+              // whitespace-pre-line so a summary typed across a few lines keeps
+              // its shape rather than collapsing into one paragraph.
+              <p className="mt-1.5 max-w-prose text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
+                {room.summary}
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

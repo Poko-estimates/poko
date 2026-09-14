@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
-import { maxDeckValues, minDeckValues } from "@/lib/decks"
+import { maxDeckValues, maxSummaryLength, minDeckValues } from "@/lib/decks"
 import type { GameDraft } from "@/lib/games/model"
 import { createClient } from "@/lib/supabase/server"
 
@@ -39,6 +39,15 @@ export async function createGame(draft: GameDraft): Promise<CreateGameResult> {
     }
   }
 
+  // Blank and whitespace-only both mean "no summary", and the column's CHECK
+  // rejects an empty string, so normalise before it gets there.
+  const summary = draft.summary?.trim() || null
+  if (summary && summary.length > maxSummaryLength) {
+    return {
+      formError: `Keep the summary under ${maxSummaryLength} characters — link to the ticket for the detail.`,
+    }
+  }
+
   const supabase = await createClient()
 
   // owner_id and slug are absent on purpose: the database supplies both, and
@@ -47,6 +56,7 @@ export async function createGame(draft: GameDraft): Promise<CreateGameResult> {
     .from("games")
     .insert({
       name,
+      summary,
       deck_name: deckName,
       deck_values: values,
       round_duration_seconds: draft.timeboxSeconds,

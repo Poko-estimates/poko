@@ -24,6 +24,14 @@ type GameSummary = {
 
 type GameDetail = GameSummary & {
   deck: Deck
+  /**
+   * What the team is estimating, or null when the name says it all.
+   *
+   * Note this is unrelated to the `GameSummary` type above, which is the
+   * condensed shape the sidebar lists — deliberately kept off it so the rows
+   * stay one line each.
+   */
+  summary: string | null
   timeboxSeconds: number | null
   roundEndsAt: string | null
 }
@@ -31,6 +39,8 @@ type GameDetail = GameSummary & {
 type GameDraft = {
   name: string
   deck: Deck
+  /** Optional. Blank is normalised to null rather than stored as "". */
+  summary: string | null
   timeboxSeconds: number | null
 }
 
@@ -92,6 +102,7 @@ function toGameDetail(row: GameRow, userId: string): GameDetail {
   return {
     ...toGameSummary(row, userId),
     deck: { name: row.deck_name, values: row.deck_values },
+    summary: row.summary,
     timeboxSeconds: row.round_duration_seconds,
     roundEndsAt: row.round_ends_at,
   }

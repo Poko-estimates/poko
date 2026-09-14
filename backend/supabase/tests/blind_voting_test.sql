@@ -23,7 +23,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(43);
+select plan(47);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -377,6 +377,40 @@ select lives_ok(
   format($$ delete from public.game_participants
              where game_id = %L and user_id = %L $$, :'game_id', :'owner_id'),
   'leaving the table after a reveal succeeds (cascade-delete guard)'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- The summary is optional, and blank is not a way to say "none"
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+
+select is(
+  (select summary from public.games where id = :'game_id'::uuid),
+  null,
+  'a game created without a summary has none'
+);
+
+select throws_ok(
+  $$ insert into public.games (name, deck_name, deck_values, summary)
+     values ('Blank summary', 'Fib', array['1','2'], '   ') $$,
+  23514, null,
+  'a whitespace-only summary is rejected — null is the only way to say "none"'
+);
+
+select throws_ok(
+  format($$ insert into public.games (name, deck_name, deck_values, summary)
+            values ('Too long', 'Fib', array['1','2'], %L) $$,
+         repeat('x', 501)),
+  23514, null,
+  'a summary over 500 characters is rejected'
+);
+
+select lives_ok(
+  $$ insert into public.games (name, deck_name, deck_values, summary)
+     values ('With summary', 'Fib', array['1','2'],
+             'Add SSO for enterprise workspaces.') $$,
+  'a game can be created with a summary'
 );
 
 
