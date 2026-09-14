@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
-import { maxDeckValues, minDeckValues } from "@/lib/decks"
+import { maxDeckValues, maxSummaryLength, minDeckValues } from "@/lib/decks"
 import type { GameDraft } from "@/lib/games/model"
 import { createClient } from "@/lib/supabase/server"
 
@@ -21,24 +21,10 @@ export type CreateGameResult = GameResult & {
 }
 
 export async function createGame(draft: GameDraft): Promise<CreateGameResult> {
-  // A server action is a public endpoint. The create dialog validates all of
-  // this too, but that validation is a courtesy to the user, not a control.
-  const name = draft.name.trim()
-  if (!name) return { formError: "Give the game a name." }
+  const fields = validateDraft(draft)
+  if (!fields.ok) return { formError: fields.formError }
 
-  const deckName = draft.deck.name.trim()
-  if (!deckName) return { formError: "Give the deck a name." }
-
-  const values = normaliseDeckValues(draft.deck.values)
-  if (values.length < minDeckValues) {
-    return { formError: `A deck needs at least ${minDeckValues} cards.` }
-  }
-  if (values.length > maxDeckValues) {
-    return {
-      formError: `A deck holds up to ${maxDeckValues} cards — that one has ${values.length}.`,
-    }
-  }
-
+  const { deckName, name, summary, values } = fields
   const supabase = await createClient()
 
   // owner_id and slug are absent on purpose: the database supplies both, and
@@ -47,6 +33,7 @@ export async function createGame(draft: GameDraft): Promise<CreateGameResult> {
     .from("games")
     .insert({
       name,
+      summary,
       deck_name: deckName,
       deck_values: values,
       round_duration_seconds: draft.timeboxSeconds,
@@ -129,6 +116,47 @@ export async function retractVote(
     .eq("round", round)
 
   if (error) return { formError: describe(error) }
+
+  revalidateGame()
+  return {}
+}
+
+/**
+ * Edits a game's name, summary, deck or timebox.
+ *
+ * Only the columns the client holds a grant on — status, round, estimate and
+ * slug are not among them, so this cannot move the round. Owner-only, via the
+ * `games_update_owner` policy.
+ *
+ * Changing the deck once cards are down is refused by the
+ * `poko_games_before_update` trigger, not by a check here, so it holds however
+ * the update arrives.
+ */
+export async function updateGame(
+  gameId: string,
+  draft: GameDraft
+): Promise<GameResult> {
+  const fields = validateDraft(draft)
+  if (!fields.ok) return { formError: fields.formError }
+
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("games")
+    .update({
+      name: fields.name,
+      summary: fields.summary,
+      deck_name: fields.deckName,
+      deck_values: fields.values,
+      round_duration_seconds: draft.timeboxSeconds,
+    })
+    .eq("id", gameId)
+    .select("slug")
+
+  if (error) return { formError: describe(error) }
+  if (!data?.length) {
+    return { formError: "That game is gone, or isn't yours to edit." }
+  }
 
   revalidateGame()
   return {}
@@ -278,6 +306,54 @@ function revalidateGame() {
   revalidatePath("/dashboard")
 }
 
+/**
+ * Validates and normalises what the dialog sent.
+ *
+ * A server action is a public endpoint, so this runs regardless of what the
+ * form already checked — that validation is a courtesy to the user, not a
+ * control. Shared by create and update so the two can't drift apart.
+ */
+type ValidDraft = {
+  ok: true
+  name: string
+  deckName: string
+  values: string[]
+  summary: string | null
+}
+
+function validateDraft(
+  draft: GameDraft
+): ValidDraft | { ok: false; formError: string } {
+  const name = draft.name.trim()
+  if (!name) return { ok: false, formError: "Give the game a name." }
+
+  const deckName = draft.deck.name.trim()
+  if (!deckName) return { ok: false, formError: "Give the deck a name." }
+
+  const values = normaliseDeckValues(draft.deck.values)
+  if (values.length < minDeckValues) {
+    return { ok: false, formError: `A deck needs at least ${minDeckValues} cards.` }
+  }
+  if (values.length > maxDeckValues) {
+    return {
+      ok: false,
+      formError: `A deck holds up to ${maxDeckValues} cards — that one has ${values.length}.`,
+    }
+  }
+
+  // Blank and whitespace-only both mean "no summary", and the column's CHECK
+  // rejects an empty string, so normalise before it gets there.
+  const summary = draft.summary?.trim() || null
+  if (summary && summary.length > maxSummaryLength) {
+    return {
+      ok: false,
+      formError: `Keep the summary under ${maxSummaryLength} characters — link to the ticket for the detail.`,
+    }
+  }
+
+  return { ok: true, name, deckName, values, summary }
+}
+
 /** Trim, drop blanks, drop repeats — mirrors the deck CHECK on `games`. */
 function normaliseDeckValues(values: string[]) {
   const seen = new Set<string>()
@@ -314,6 +390,10 @@ function describe(error: { code?: string; hint?: string | null; message: string 
       return "Only the person who created the game can do that."
     case "poko_no_timebox":
       return "This game has no timebox to start."
+    case "poko_game_closed":
+      return "Reopen the round before editing this game."
+    case "poko_deck_locked":
+      return "Cards are already down — the deck can't change mid-round."
     case "poko_room_missing":
       return "That invite link doesn't match a game."
     case "poko_not_signed_in":

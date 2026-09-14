@@ -63,6 +63,7 @@ export type Database = {
           round_started_at: string
           slug: string
           status: string
+          summary: string | null
           updated_at: string
         }
         Insert: {
@@ -83,6 +84,7 @@ export type Database = {
           round_started_at?: string
           slug?: string
           status?: string
+          summary?: string | null
           updated_at?: string
         }
         Update: {
@@ -103,6 +105,7 @@ export type Database = {
           round_started_at?: string
           slug?: string
           status?: string
+          summary?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -167,6 +170,7 @@ export type Database = {
           round_started_at: string
           slug: string
           status: string
+          summary: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -196,6 +200,7 @@ export type Database = {
           round_started_at: string
           slug: string
           status: string
+          summary: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -226,6 +231,7 @@ export type Database = {
           round_started_at: string
           slug: string
           status: string
+          summary: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -255,6 +261,7 @@ export type Database = {
           round_started_at: string
           slug: string
           status: string
+          summary: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -284,6 +291,7 @@ export type Database = {
           round_started_at: string
           slug: string
           status: string
+          summary: string | null
           updated_at: string
         }
         SetofOptions: {

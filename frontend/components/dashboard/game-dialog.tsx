@@ -18,15 +18,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { EmojiInput } from "@/components/ui/emoji-input"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/toast"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import {
   deckPresets,
   maxDeckValues,
+  maxSummaryLength,
   minDeckValues,
   parseDeckValues,
 } from "@/lib/decks"
-import { createGame } from "@/lib/games/actions"
+import { createGame, updateGame } from "@/lib/games/actions"
+import type { Game } from "@/lib/games/model"
 import { cn } from "@/lib/utils"
 
 const customDeckId = "custom"
@@ -42,18 +45,46 @@ const timeboxOptions = [
   { id: "none", label: "No limit", seconds: null },
 ] as const
 
-type CreateGameDialogProps = {
+type GameDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Called with the new game's slug once the database has it. */
-  onCreated: (slug: string) => void
+  /**
+   * The game being edited. Absent means this is a new one — the only
+   * difference between the two modes, besides which action runs.
+   */
+  game?: Game
+  /** Called with the new game's slug, on creation only. */
+  onCreated?: (slug: string) => void
 }
 
-function CreateGameDialog({
+/** Which preset a deck corresponds to, or "custom" when it matches none. */
+function deckIdFor(game: Game | undefined) {
+  if (!game) return deckPresets[0].id
+
+  const preset = deckPresets.find(
+    (option) =>
+      option.name === game.deck.name &&
+      option.values.join("\u0000") === game.deck.values.join("\u0000")
+  )
+
+  return preset?.id ?? customDeckId
+}
+
+function timeboxIdFor(game: Game | undefined) {
+  const match = timeboxOptions.find(
+    (option) => option.seconds === (game?.timeboxSeconds ?? null)
+  )
+
+  return match?.id ?? "none"
+}
+
+function GameDialog({
+  game,
   open,
   onCreated,
   onOpenChange,
-}: CreateGameDialogProps) {
+}: GameDialogProps) {
+  const editing = game !== undefined
   const deckLabelId = useId()
   const timeboxLabelId = useId()
 
@@ -62,26 +93,42 @@ function CreateGameDialog({
   // Kept inline rather than toasted: these are about the fields in front of
   // you — a missing name, too few cards — so the message belongs beside them.
   const [formError, setFormError] = useState<string | null>(null)
-  const [name, setName] = useState("")
-  const [deckId, setDeckId] = useState<string>(deckPresets[0].id)
-  const [timeboxId, setTimeboxId] = useState<string>("none")
-  const [customName, setCustomName] = useState("")
-  const [customValues, setCustomValues] = useState("")
+  const [name, setName] = useState(game?.name ?? "")
+  const [summary, setSummary] = useState(game?.summary ?? "")
+  const [deckId, setDeckId] = useState<string>(() => deckIdFor(game))
+  const [timeboxId, setTimeboxId] = useState<string>(() => timeboxIdFor(game))
+  const [customName, setCustomName] = useState(
+    deckIdFor(game) === customDeckId ? (game?.deck.name ?? "") : ""
+  )
+  const [customValues, setCustomValues] = useState(
+    deckIdFor(game) === customDeckId ? (game?.deck.values.join(", ") ?? "") : ""
+  )
 
   const isCustom = deckId === customDeckId
   const customCards = parseDeckValues(customValues)
 
+  /**
+   * Loads the form on open and clears it on close.
+   *
+   * Done here, in an event handler, rather than by syncing `game` into state
+   * from an effect — which this repo treats as a lint error, and which would
+   * fight whatever the user had already typed.
+   */
   function handleOpenChange(next: boolean) {
     onOpenChange(next)
+    setFormError(null)
 
-    if (!next) {
-      setFormError(null)
-      setName("")
-      setDeckId(deckPresets[0].id)
-      setTimeboxId("none")
-      setCustomName("")
-      setCustomValues("")
-    }
+    const source = next ? game : undefined
+    const deck = deckIdFor(source)
+
+    setName(source?.name ?? "")
+    setSummary(source?.summary ?? "")
+    setDeckId(deck)
+    setTimeboxId(timeboxIdFor(source))
+    setCustomName(deck === customDeckId ? (source?.deck.name ?? "") : "")
+    setCustomValues(
+      deck === customDeckId ? (source?.deck.values.join(", ") ?? "") : ""
+    )
   }
 
   function handleSubmit() {
@@ -90,25 +137,43 @@ function CreateGameDialog({
 
     setFormError(null)
 
+    const draft = {
+      name: name.trim(),
+      summary: summary.trim() || null,
+      deck: preset
+        ? { name: preset.name, values: preset.values }
+        : { name: customName.trim(), values: customCards },
+      timeboxSeconds: timebox?.seconds ?? null,
+    }
+
+    // The two modes are branched rather than sharing one result, because only
+    // creation returns a slug and only creation navigates.
     startTransition(async () => {
-      const result = await createGame({
-        name: name.trim(),
-        deck: preset
-          ? { name: preset.name, values: preset.values }
-          : { name: customName.trim(), values: customCards },
-        timeboxSeconds: timebox?.seconds ?? null,
-      })
+      if (game) {
+        const result = await updateGame(game.id, draft)
+
+        if (result.formError) {
+          setFormError(result.formError)
+          return
+        }
+
+        toast.add({ type: "success", title: `“${draft.name}” updated` })
+        handleOpenChange(false)
+        return
+      }
+
+      const result = await createGame(draft)
 
       if (result.formError) {
         setFormError(result.formError)
         return
       }
 
-      // The dialog closes only once the game actually exists.
-      if (result.slug) {
-        toast.add({ type: "success", title: `“${name.trim()}” is on the table` })
-        onCreated(result.slug)
-      }
+      toast.add({
+        type: "success",
+        title: `“${draft.name}” is on the table`,
+      })
+      if (result.slug) onCreated?.(result.slug)
     })
   }
 
@@ -120,9 +185,11 @@ function CreateGameDialog({
           onFormSubmit={handleSubmit}
         >
           <DialogHeader>
-            <DialogTitle>Create a game</DialogTitle>
+            <DialogTitle>{editing ? "Edit game" : "Create a game"}</DialogTitle>
             <DialogDescription>
-              Name the round and choose the cards your team will vote with.
+              {editing
+                ? "Change the name, summary, deck or timebox."
+                : "Name the round and choose the cards your team will vote with."}
             </DialogDescription>
           </DialogHeader>
 
@@ -144,6 +211,28 @@ function CreateGameDialog({
               </FieldError>
             </Field>
 
+            {/* Optional, and next to the name because it answers the same
+                question: what are we estimating? */}
+            <Field name="summary">
+              <FieldLabel>
+                Summary{" "}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </FieldLabel>
+              <Textarea
+                value={summary}
+                onValueChange={setSummary}
+                maxLength={maxSummaryLength}
+                rows={3}
+              />
+              <FieldDescription>
+                {summary.trim()
+                  ? `${maxSummaryLength - summary.trim().length} characters left`
+                  : "Skip it when the name says enough."}
+              </FieldDescription>
+            </Field>
+
             <div className="flex flex-col gap-2.5">
               <div>
                 <p
@@ -151,10 +240,6 @@ function CreateGameDialog({
                   className="text-sm font-medium text-primary"
                 >
                   Timebox
-                </p>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  The round closes on its own once everyone has voted — the
-                  clock just keeps things moving.
                 </p>
               </div>
 
@@ -307,7 +392,13 @@ function CreateGameDialog({
               size="xl"
               disabled={pending}
             >
-              {pending ? "Creating…" : "Create game"}
+              {pending
+                ? editing
+                  ? "Saving…"
+                  : "Creating…"
+                : editing
+                  ? "Save changes"
+                  : "Create game"}
             </Button>
           </DialogFooter>
         </Form>
@@ -357,4 +448,4 @@ function DeckOption({
   )
 }
 
-export { CreateGameDialog }
+export { GameDialog }

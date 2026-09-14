@@ -23,7 +23,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(43);
+select plan(57);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -377,6 +377,148 @@ select lives_ok(
   format($$ delete from public.game_participants
              where game_id = %L and user_id = %L $$, :'game_id', :'owner_id'),
   'leaving the table after a reveal succeeds (cascade-delete guard)'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Editing a game, and the one edit that has to be refused
+-- ---------------------------------------------------------------------------
+-- Its own game, still open. The narrative game above has been through three
+-- rounds and is closed by this point, and a closed game is frozen — so reusing
+-- it here would test the wrong rule.
+select pg_temp.act_as(:'owner_id');
+
+insert into public.games (name, deck_name, deck_values, round_duration_seconds)
+values ('Open and editable', 'Fibonacci', array['1','2','3'], 60);
+
+select id as editable_id, slug as editable_slug
+  from public.games where name = 'Open and editable'
+\gset
+
+select pg_temp.act_as(:'player_id');
+select public.join_game(:'editable_slug', 'Kojo');
+
+-- One card of two: enough to lock the deck, not enough to auto-close.
+select pg_temp.act_as(:'owner_id');
+insert into public.votes (game_id, round, value) values (:'editable_id', 1, '2');
+
+select lives_ok(
+  format($$ update public.games set name = 'Renamed mid-round' where id = %L $$,
+         :'editable_id'),
+  'the owner can rename an open game mid-round'
+);
+
+-- Swapping the deck now would leave that card with a face the deck no longer has.
+select throws_ok(
+  format($$ update public.games set deck_values = array['XS','S','M']
+             where id = %L $$, :'editable_id'),
+  'P0001', null,
+  'the deck cannot be changed once cards are down'
+);
+
+-- The timebox is still fair game: it only affects the next round's clock.
+select lives_ok(
+  format($$ update public.games set round_duration_seconds = 300
+             where id = %L $$, :'editable_id'),
+  'the timebox can be changed mid-round'
+);
+
+-- A closed round's details are frozen; reopening is the way back to editing.
+-- Uses its own game so the round-1 narrative above is undisturbed.
+select pg_temp.act_as(:'owner_id');
+
+insert into public.games (name, deck_name, deck_values, round_duration_seconds)
+values ('Closed and frozen', 'Fibonacci', array['1','2','3'], 60);
+
+select id as frozen_id from public.games where name = 'Closed and frozen'
+\gset
+
+insert into public.votes (game_id, round, value) values (:'frozen_id', 1, '2');
+select public.close_round(:'frozen_id');
+
+select throws_ok(
+  format($$ update public.games set name = 'Renamed while closed'
+             where id = %L $$, :'frozen_id'),
+  'P0001', null,
+  'a closed game cannot be renamed'
+);
+
+select throws_ok(
+  format($$ update public.games set summary = 'Sneaky' where id = %L $$,
+         :'frozen_id'),
+  'P0001', null,
+  'a closed game cannot have its summary changed'
+);
+
+-- The round transitions have to keep working through the same trigger.
+select lives_ok(
+  format($$ select public.set_estimate(%L, '2') $$, :'frozen_id'),
+  'set_estimate still works on a closed game'
+);
+
+select lives_ok(
+  format($$ select public.reopen_round(%L) $$, :'frozen_id'),
+  'reopen_round still works on a closed game'
+);
+
+select lives_ok(
+  format($$ update public.games set name = 'Renamed after reopening'
+             where id = %L $$, :'frozen_id'),
+  'reopening unfreezes the details'
+);
+
+select pg_temp.act_as(:'player_id');
+update public.games set name = 'Hijacked' where id = :'game_id'::uuid;
+
+select pg_temp.act_as_postgres();
+select is(
+  (select name from public.games where id = :'game_id'::uuid),
+  'Sprint 24 refinement',
+  'a participant''s edit matches no rows — the name is unchanged'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- The summary is optional, and blank is not a way to say "none"
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+
+select is(
+  (select summary from public.games where id = :'game_id'::uuid),
+  null,
+  'a game created without a summary has none'
+);
+
+select pg_temp.act_as(:'owner_id');
+update public.games set summary = 'Added after the fact.'
+ where id = :'editable_id'::uuid;
+
+select is(
+  (select summary from public.games where id = :'editable_id'::uuid),
+  'Added after the fact.',
+  'a summary can be added to an existing open game'
+);
+
+select throws_ok(
+  $$ insert into public.games (name, deck_name, deck_values, summary)
+     values ('Blank summary', 'Fib', array['1','2'], '   ') $$,
+  23514, null,
+  'a whitespace-only summary is rejected — null is the only way to say "none"'
+);
+
+select throws_ok(
+  format($$ insert into public.games (name, deck_name, deck_values, summary)
+            values ('Too long', 'Fib', array['1','2'], %L) $$,
+         repeat('x', 501)),
+  23514, null,
+  'a summary over 500 characters is rejected'
+);
+
+select lives_ok(
+  $$ insert into public.games (name, deck_name, deck_values, summary)
+     values ('With summary', 'Fib', array['1','2'],
+             'Add SSO for enterprise workspaces.') $$,
+  'a game can be created with a summary'
 );
 
 

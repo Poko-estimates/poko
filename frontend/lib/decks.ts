@@ -39,6 +39,9 @@ const maxDeckValues = 16
 /** Fewer than this and there is nothing to choose between. */
 const minDeckValues = 2
 
+/** Mirrors the `games_summary_length` CHECK on the games table. */
+const maxSummaryLength = 500
+
 /**
  * Splits the custom-deck input into card faces. Commas and newlines both
  * separate, blanks are dropped, and repeats are ignored so one value can't be
@@ -65,5 +68,12 @@ function slugify(name: string): string {
   return slug || "new-room"
 }
 
-export { deckPresets, maxDeckValues, minDeckValues, parseDeckValues, slugify }
+export {
+  deckPresets,
+  maxDeckValues,
+  maxSummaryLength,
+  minDeckValues,
+  parseDeckValues,
+  slugify,
+}
 export type { Deck, DeckPreset }
