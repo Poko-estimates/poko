@@ -10,7 +10,8 @@ type Deck = {
 const gameStatuses = ["voting", "closed"] as const
 type GameStatus = (typeof gameStatuses)[number]
 
-type GameSummary = {
+/** A game, as both the sidebar and the room need it. */
+type Game = {
   id: string
   slug: string
   name: string
@@ -20,21 +21,13 @@ type GameSummary = {
   round: number
   /** The sidebar only offers destructive actions on your own games. */
   isOwner: boolean
-}
-
-type GameDetail = GameSummary & {
   deck: Deck
-  /**
-   * What the team is estimating, or null when the name says it all.
-   *
-   * Note this is unrelated to the `GameSummary` type above, which is the
-   * condensed shape the sidebar lists — deliberately kept off it so the rows
-   * stay one line each.
-   */
+  /** What the team is estimating, or null when the name says it all. */
   summary: string | null
   timeboxSeconds: number | null
   roundEndsAt: string | null
 }
+
 
 type GameDraft = {
   name: string
@@ -64,7 +57,7 @@ type Seat = {
 }
 
 /** Everything the room renders from. */
-type RoomState = GameDetail & {
+type RoomState = Game & {
   seats: Seat[]
   /** The signed-in player's own seat. */
   me: Seat | null
@@ -85,7 +78,7 @@ function toGameStatus(value: string): GameStatus {
   throw new Error(`Unknown game status from the database: ${value}`)
 }
 
-function toGameSummary(row: GameRow, userId: string): GameSummary {
+function toGame(row: GameRow, userId: string): Game {
   return {
     id: row.id,
     slug: row.slug,
@@ -95,18 +88,13 @@ function toGameSummary(row: GameRow, userId: string): GameSummary {
     estimate: row.estimate,
     round: row.round,
     isOwner: row.owner_id === userId,
-  }
-}
-
-function toGameDetail(row: GameRow, userId: string): GameDetail {
-  return {
-    ...toGameSummary(row, userId),
     deck: { name: row.deck_name, values: row.deck_values },
     summary: row.summary,
     timeboxSeconds: row.round_duration_seconds,
     roundEndsAt: row.round_ends_at,
   }
 }
+
 
 /** Two-letter seat label: "Jane Doe" -> "JD", "jane.doe" -> "JD". */
 function initialsFor(name: string) {
@@ -117,14 +105,13 @@ function initialsFor(name: string) {
   return letters.toUpperCase()
 }
 
-export { gameStatuses, initialsFor, toGameDetail, toGameStatus, toGameSummary }
+export { gameStatuses, initialsFor, toGame, toGameStatus }
 export type {
   Deck,
-  GameDetail,
+  Game,
   GameDraft,
   GameRow,
   GameStatus,
-  GameSummary,
   RoomState,
   Seat,
 }

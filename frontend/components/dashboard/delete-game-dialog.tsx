@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import { deleteGame } from "@/lib/games/actions"
-import type { GameSummary } from "@/lib/games/model"
+import type { Game } from "@/lib/games/model"
 
 /**
  * Deletes a game, behind a confirmation.
@@ -27,7 +27,7 @@ function DeleteGameDialog({
   game,
   isActive,
 }: {
-  game: GameSummary
+  game: Game
   /** Whether this is the game currently open, so we know to navigate away. */
   isActive: boolean
 }) {

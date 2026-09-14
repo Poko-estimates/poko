@@ -4,8 +4,9 @@ import Link from "next/link"
 import { CheckCircle2, Plus } from "lucide-react"
 
 import { DeleteGameDialog } from "@/components/dashboard/delete-game-dialog"
+import { EditGameButton } from "@/components/dashboard/edit-game-button"
 import { Button } from "@/components/ui/button"
-import type { GameSummary } from "@/lib/games/model"
+import type { Game } from "@/lib/games/model"
 import { cn } from "@/lib/utils"
 
 /**
@@ -19,7 +20,7 @@ function GamesPanel({
   onCreate,
 }: {
   activeSlug: string | null
-  games: GameSummary[]
+  games: Game[]
   onCreate: () => void
 }) {
   const open = games.filter((game) => game.status === "voting").length
@@ -106,7 +107,10 @@ function GamesPanel({
                   </Link>
 
                   {game.isOwner && (
-                    <DeleteGameDialog game={game} isActive={active} />
+                    <>
+                      <EditGameButton game={game} />
+                      <DeleteGameDialog game={game} isActive={active} />
+                    </>
                   )}
                 </li>
               )

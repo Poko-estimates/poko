@@ -23,7 +23,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(47);
+select plan(52);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -381,6 +381,44 @@ select lives_ok(
 
 
 -- ---------------------------------------------------------------------------
+-- Editing a game, and the one edit that has to be refused
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+
+select lives_ok(
+  format($$ update public.games set name = 'Renamed sprint' where id = %L $$,
+         :'game_id'),
+  'the owner can rename a game mid-round'
+);
+
+-- A card is already down for round 1 at this point, so swapping the deck would
+-- leave a vote whose face is no longer in it.
+select throws_ok(
+  format($$ update public.games set deck_values = array['XS','S','M']
+             where id = %L $$, :'game_id'),
+  'P0001', null,
+  'the deck cannot be changed once cards are down'
+);
+
+-- The timebox is still fair game: it only affects the next round's clock.
+select lives_ok(
+  format($$ update public.games set round_duration_seconds = 300
+             where id = %L $$, :'game_id'),
+  'the timebox can be changed mid-round'
+);
+
+select pg_temp.act_as(:'player_id');
+update public.games set name = 'Hijacked' where id = :'game_id'::uuid;
+
+select pg_temp.act_as_postgres();
+select is(
+  (select name from public.games where id = :'game_id'::uuid),
+  'Renamed sprint',
+  'a participant''s edit matches no rows — the name is unchanged'
+);
+
+
+-- ---------------------------------------------------------------------------
 -- The summary is optional, and blank is not a way to say "none"
 -- ---------------------------------------------------------------------------
 select pg_temp.act_as(:'owner_id');
@@ -389,6 +427,16 @@ select is(
   (select summary from public.games where id = :'game_id'::uuid),
   null,
   'a game created without a summary has none'
+);
+
+select pg_temp.act_as(:'owner_id');
+update public.games set summary = 'Added after the fact.'
+ where id = :'game_id'::uuid;
+
+select is(
+  (select summary from public.games where id = :'game_id'::uuid),
+  'Added after the fact.',
+  'a summary can be added to an existing game'
 );
 
 select throws_ok(

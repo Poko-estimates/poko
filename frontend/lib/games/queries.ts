@@ -1,8 +1,7 @@
 import {
   initialsFor,
-  toGameDetail,
-  toGameSummary,
-  type GameSummary,
+  toGame,
+  type Game,
   type RoomState,
   type Seat,
 } from "@/lib/games/model"
@@ -23,7 +22,7 @@ import { createClient } from "@/lib/supabase/server"
  * seated at, which includes other people's — hence `userId`, so each row knows
  * whether it is yours to delete.
  */
-async function listGames(userId: string): Promise<GameSummary[]> {
+async function listGames(userId: string): Promise<Game[]> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -33,7 +32,7 @@ async function listGames(userId: string): Promise<GameSummary[]> {
 
   if (error) throw new Error(`Could not load games: ${error.message}`)
 
-  return data.map((row) => toGameSummary(row, userId))
+  return data.map((row) => toGame(row, userId))
 }
 
 /**
@@ -96,7 +95,7 @@ async function getRoomState(
   }))
 
   return {
-    ...toGameDetail(game, userId),
+    ...toGame(game, userId),
     seats,
     me: seats.find((seat) => seat.isMe) ?? null,
     votedCount: seats.filter((seat) => seat.hasVoted).length,

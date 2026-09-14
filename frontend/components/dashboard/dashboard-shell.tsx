@@ -4,10 +4,10 @@ import { useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Spade } from "lucide-react"
 
-import { CreateGameDialog } from "@/components/dashboard/create-game-dialog"
+import { GameDialog } from "@/components/dashboard/game-dialog"
 import { GamesPanel } from "@/components/dashboard/games-panel"
 import { Button } from "@/components/ui/button"
-import type { GameSummary } from "@/lib/games/model"
+import type { Game } from "@/lib/games/model"
 
 /**
  * Layout and dialog state only. The games list and the room itself are read on
@@ -21,7 +21,7 @@ function DashboardShell({
 }: {
   activeSlug: string | null
   children: ReactNode
-  games: GameSummary[]
+  games: Game[]
 }) {
   const router = useRouter()
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -66,7 +66,7 @@ function DashboardShell({
         />
       </div>
 
-      <CreateGameDialog
+      <GameDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onCreated={(slug) => {
