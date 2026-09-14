@@ -2,11 +2,12 @@ import type { Metadata } from "next"
 import Link from "next/link"
 
 import { SessionRoom } from "@/components/dashboard/session-room"
-import { SignOutButton } from "@/components/dashboard/sign-out-button"
 import { JoinCard } from "@/components/room/join-card"
 import { AppHeader } from "@/components/site/app-header"
+import { UserMenu } from "@/components/site/user-menu"
 import { Container } from "@/components/site/container"
 import { buttonVariants } from "@/components/ui/button"
+import { initialsFor } from "@/lib/account/model"
 import { getRoomState } from "@/lib/games/queries"
 import { createClient } from "@/lib/supabase/server"
 
@@ -33,9 +34,10 @@ export default async function Page({ params }: PageProps<"/room/[slug]">) {
   return (
     <div className="flex flex-1 flex-col bg-surface">
       <AppHeader
-        label={room ? displayName : null}
         action={
           room &&
+          // A guest has nothing to manage yet, so they get the offer of an
+          // account rather than a settings menu.
           (isGuest ? (
             <Link
               href="/signup"
@@ -44,7 +46,11 @@ export default async function Page({ params }: PageProps<"/room/[slug]">) {
               Save your games
             </Link>
           ) : (
-            <SignOutButton />
+            <UserMenu
+              displayName={displayName}
+              email={typeof claims?.email === "string" ? claims.email : null}
+              initials={initialsFor(displayName)}
+            />
           ))
         }
       />

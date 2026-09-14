@@ -7,7 +7,7 @@ import type { Database } from "@/lib/supabase/database.types"
  * Routes that require a signed-in user. Everything else is public — this is a
  * marketing site with an auth flow bolted on, not an app behind a login wall.
  */
-const PROTECTED_PREFIXES = ["/dashboard", "/reset-password"]
+const PROTECTED_PREFIXES = ["/dashboard", "/settings", "/reset-password"]
 
 /** Auth screens a signed-in user has no reason to see. */
 const AUTH_ROUTES = ["/login", "/signup", "/forgot-password"]

@@ -3,10 +3,11 @@ import { redirect } from "next/navigation"
 
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { SessionRoom } from "@/components/dashboard/session-room"
-import { SignOutButton } from "@/components/dashboard/sign-out-button"
 import { WelcomeToast } from "@/components/dashboard/welcome-toast"
 import { AppHeader } from "@/components/site/app-header"
+import { UserMenu } from "@/components/site/user-menu"
 import { Container } from "@/components/site/container"
+import { initialsFor } from "@/lib/account/model"
 import { getRoomState, listGames } from "@/lib/games/queries"
 import { createClient } from "@/lib/supabase/server"
 
@@ -39,7 +40,15 @@ export default async function Page({ searchParams }: PageProps<"/dashboard">) {
 
   return (
     <div className="flex flex-1 flex-col bg-surface">
-      <AppHeader label={email} action={<SignOutButton />} />
+      <AppHeader
+        action={
+          <UserMenu
+            displayName={fullName}
+            email={email}
+            initials={initialsFor(fullName)}
+          />
+        }
+      />
 
       <main className="flex-1 py-8 sm:py-12">
         <Container className="flex flex-col gap-6">

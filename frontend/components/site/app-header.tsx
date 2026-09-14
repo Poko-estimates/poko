@@ -4,29 +4,18 @@ import { Container } from "@/components/site/container"
 import { Logo } from "@/components/site/logo"
 
 /**
- * Chrome for the signed-in surfaces. The dashboard identifies you by email and
- * offers sign-out; a room identifies a guest by their display name and offers
- * them an account instead.
+ * Chrome for the signed-in surfaces.
+ *
+ * Identity lives in the avatar menu on the right rather than spelled out here
+ * — `action` is that menu on the dashboard and in a room, and something else
+ * (an invitation to make an account) for a guest.
  */
-function AppHeader({
-  action,
-  label,
-}: {
-  action?: ReactNode
-  label?: string | null
-}) {
+function AppHeader({ action }: { action?: ReactNode }) {
   return (
     <header className="border-b border-border bg-background">
       <Container className="flex h-16 items-center justify-between gap-4">
         <Logo />
-        <div className="flex items-center gap-3">
-          {label && (
-            <span className="hidden max-w-56 truncate text-sm text-muted-foreground sm:block">
-              {label}
-            </span>
-          )}
-          {action}
-        </div>
+        {action}
       </Container>
     </header>
   )
