@@ -23,7 +23,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(35);
+select plan(36);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -377,6 +377,21 @@ select lives_ok(
   format($$ delete from public.game_participants
              where game_id = %L and user_id = %L $$, :'game_id', :'owner_id'),
   'leaving the table after a reveal succeeds (cascade-delete guard)'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- A game with votes can still be deleted
+--
+-- Deleting a game cascades to its votes, which fires the BEFORE DELETE guard
+-- while the parent row is already gone. Without a branch for that, deleting any
+-- game that had ever been voted in would fail — and so would deleting a user,
+-- which cascades to the games they own.
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+select lives_ok(
+  format($$ delete from public.games where id = %L $$, :'game_id'),
+  'a game that has votes can be deleted (cascade reaches the vote guard)'
 );
 
 

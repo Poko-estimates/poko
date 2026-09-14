@@ -14,11 +14,22 @@ import {
   retractVote,
 } from "@/lib/games/actions"
 import type { RoomState } from "@/lib/games/model"
+import { useCoalescedRefresh } from "@/lib/rooms/use-coalesced-refresh"
+import { useRoomChannel } from "@/lib/rooms/use-room-channel"
 import { cn } from "@/lib/utils"
 
 /** The live estimation room for one game. */
 function SessionRoom({ room }: { room: RoomState }) {
   const [error, setError] = useState<string | null>(null)
+
+  // Realtime is a signal, not a source: every event just asks the server for
+  // the room again, so card values always come back through RLS.
+  const refresh = useCoalescedRefresh()
+  const online = useRoomChannel({
+    gameId: room.id,
+    userId: room.me?.userId ?? "",
+    onEvent: refresh,
+  })
 
   // The optimistic base is the server's value, so when a revalidation lands
   // mid-transition React re-runs this on top of the fresh data rather than
@@ -128,6 +139,7 @@ function SessionRoom({ room }: { room: RoomState }) {
                 <Seat
                   seat={seat}
                   revealed={closed}
+                  online={online.has(seat.userId)}
                   optimisticVote={seat.isMe ? optimisticVote : undefined}
                 />
               </li>
