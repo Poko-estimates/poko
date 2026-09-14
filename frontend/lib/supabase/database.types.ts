@@ -110,6 +110,24 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          tier: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          tier?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          tier?: string
+        }
+        Relationships: []
+      }
       votes: {
         Row: {
           created_at: string
@@ -180,6 +198,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      deactivate_own_account: { Args: never; Returns: undefined }
+      delete_own_account: { Args: never; Returns: undefined }
       join_game: {
         Args: { p_display_name?: string; p_slug: string }
         Returns: {
