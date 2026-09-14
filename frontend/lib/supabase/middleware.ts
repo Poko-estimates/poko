@@ -54,15 +54,26 @@ export async function updateSession(request: NextRequest) {
   // A simple mistake could make it very hard to debug issues with users being
   // randomly logged out.
   const { data } = await supabase.auth.getClaims()
-  const user = data?.claims
+  const claims = data?.claims
+
+  // An invited guest signs in anonymously, so they hold a real session and
+  // carry the `authenticated` role just like a member. Treating "has a session"
+  // as "is a member" gets both rules below backwards: the guest would be let
+  // into /dashboard, where they'd find an empty list and a create button that
+  // fails, and bounced off /login, which is the one page that could turn them
+  // into a real account.
+  //
+  // `is_anonymous` is issued by GoTrue and is not user-editable — unlike
+  // user_metadata, which is why it is safe to branch on.
+  const member = Boolean(claims) && claims?.is_anonymous !== true
 
   const { pathname } = request.nextUrl
 
-  if (!user && isProtected(pathname)) {
+  if (!member && isProtected(pathname)) {
     return redirectPreservingSession(request, supabaseResponse, "/login")
   }
 
-  if (user && AUTH_ROUTES.includes(pathname)) {
+  if (member && AUTH_ROUTES.includes(pathname)) {
     return redirectPreservingSession(request, supabaseResponse, "/dashboard")
   }
 

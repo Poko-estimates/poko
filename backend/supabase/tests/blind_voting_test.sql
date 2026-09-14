@@ -289,14 +289,19 @@ select is(
   'reopening advanced the round counter rather than deleting votes'
 );
 
+-- Scoped to this game on purpose. These run as postgres, which bypasses RLS,
+-- so an unscoped count would silently include every other game in the database
+-- and the assertion would only hold on a freshly reset one.
 select is(
-  (select count(*)::int from public.game_participants where voted_round = 2),
+  (select count(*)::int from public.game_participants
+    where game_id = :'game_id'::uuid and voted_round = 2),
   0,
   'reopening cleared every seat with one write'
 );
 
 select is(
-  (select count(*)::int from public.votes where round = 1),
+  (select count(*)::int from public.votes
+    where game_id = :'game_id'::uuid and round = 1),
   2,
   'the previous round''s cards survive a reopen and stay readable'
 );

@@ -5,8 +5,8 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { SessionRoom } from "@/components/dashboard/session-room"
 import { SignOutButton } from "@/components/dashboard/sign-out-button"
 import { WelcomeAlert } from "@/components/dashboard/welcome-alert"
+import { AppHeader } from "@/components/site/app-header"
 import { Container } from "@/components/site/container"
-import { Logo } from "@/components/site/logo"
 import { getRoomState, listGames } from "@/lib/games/queries"
 import { createClient } from "@/lib/supabase/server"
 
@@ -39,17 +39,7 @@ export default async function Page({ searchParams }: PageProps<"/dashboard">) {
 
   return (
     <div className="flex flex-1 flex-col bg-surface">
-      <header className="border-b border-border bg-background">
-        <Container className="flex h-16 items-center justify-between gap-4">
-          <Logo />
-          <div className="flex items-center gap-3">
-            <span className="hidden max-w-56 truncate text-sm text-muted-foreground sm:block">
-              {email}
-            </span>
-            <SignOutButton />
-          </div>
-        </Container>
-      </header>
+      <AppHeader label={email} action={<SignOutButton />} />
 
       <main className="flex-1 py-8 sm:py-12">
         <Container className="flex flex-col gap-6">

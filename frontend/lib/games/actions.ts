@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
 
 import { maxDeckValues, minDeckValues } from "@/lib/decks"
 import type { GameDraft } from "@/lib/games/model"
@@ -159,6 +160,64 @@ export async function reopenRound(gameId: string): Promise<GameResult> {
 
   revalidateGame()
   return {}
+}
+
+/**
+ * Takes a seat at a game from its invite link.
+ *
+ * Possession of the slug is the invitation — there is no RLS formulation of
+ * "you may read the row whose slug you can name" — so joining goes through the
+ * `join_game` function rather than a direct insert. It is idempotent, so
+ * re-opening the link is harmless.
+ *
+ * This runs as a server action rather than in the browser on purpose: the
+ * session cookie set by `signInAnonymously` goes out on this response, so the
+ * next request renders as a participant. Signing in from the browser would
+ * leave the already-rendered server tree stale and open a window where the
+ * browser holds a session the server doesn't know about.
+ */
+export async function joinRoom(
+  slug: string,
+  displayName: string
+): Promise<GameResult> {
+  const name = displayName.trim()
+  if (!name) return { formError: "Pick a name your team will recognise." }
+
+  const supabase = await createClient()
+  const { data } = await supabase.auth.getClaims()
+
+  // Someone already signed in joins under their own account. This guard is
+  // essential rather than tidy: signInAnonymously does not refuse when a
+  // session exists, it REPLACES it — so without it, clicking a colleague's
+  // invite would quietly sign you out of your own account into a throwaway one.
+  if (!data?.claims) {
+    const { error } = await supabase.auth.signInAnonymously({
+      // Display only, and only used to seed the seat name below.
+      options: { data: { full_name: name } },
+    })
+
+    if (error) {
+      // The project allows a limited number of guests per hour per IP, and a
+      // whole team shares one office address.
+      return {
+        formError: /rate limit|too many/i.test(error.message)
+          ? "A lot of people have joined from this network in the last hour. Try again shortly."
+          : error.message,
+      }
+    }
+  }
+
+  const { error } = await supabase.rpc("join_game", {
+    p_slug: slug,
+    p_display_name: name,
+  })
+
+  if (error) return { formError: describe(error) }
+
+  // The header now shows a name and the room has become readable, so the whole
+  // tree needs re-rendering — same shape as signIn in lib/auth/actions.ts.
+  revalidatePath("/", "layout")
+  redirect(`/room/${slug}`)
 }
 
 /**
