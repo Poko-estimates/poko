@@ -20,7 +20,7 @@ function Seat({
   seat,
 }: {
   /** Has this person got the room open right now? Presence, not membership. */
-  online?: boolean
+  online: boolean
   /** Only passed for your own seat, so a card you just played shows instantly. */
   optimisticVote?: string | null
   revealed: boolean
@@ -66,24 +66,31 @@ function Seat({
       <span className="flex min-w-0 max-w-28 items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <span className="relative flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.625rem] font-bold text-primary">
           {seat.initials}
-          {online && (
-            <span
-              className="absolute -right-0.5 -bottom-0.5 size-2 rounded-full bg-secondary ring-2 ring-card"
-              aria-hidden="true"
-            />
-          )}
+          {/* Always rendered, so an away player reads as away rather than as a
+              seat that simply forgot to draw a dot. */}
+          <span
+            className={cn(
+              "absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2 ring-card",
+              online ? "bg-success" : "bg-destructive"
+            )}
+            aria-hidden="true"
+          />
         </span>
         <span className="truncate">
           {seat.isMe ? "You" : seat.displayName.split(" ")[0]}
         </span>
       </span>
 
+      {/* The dot is decorative, so presence has to be said in words too. */}
       <span className="sr-only">
+        {`${seat.isMe ? "You" : seat.displayName} ${
+          seat.isMe ? "are" : "is"
+        } ${online ? "online" : "away"}. `}
         {faceUp
-          ? `${seat.displayName} voted ${value}`
+          ? `Voted ${value}`
           : hasVoted
-            ? `${seat.displayName} has voted — card hidden until the round closes`
-            : `${seat.displayName} is still choosing`}
+            ? "Has voted — card hidden until the round closes"
+            : "Still choosing"}
       </span>
     </div>
   )
