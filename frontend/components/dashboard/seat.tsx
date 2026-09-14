@@ -31,6 +31,24 @@ function Seat({
   const hasVoted = pending ? optimisticVote !== null : seat.hasVoted
   const faceUp = hasVoted && value !== null && (revealed || seat.isMe)
 
+  // Presence only matters while a round is live: it tells you whether the
+  // person you're waiting on is actually there. Once the cards are face up
+  // there is nobody left to wait for, so who still has a tab open is noise.
+  const showPresence = !revealed
+
+  const who = seat.isMe ? "You" : seat.displayName
+  const verb = seat.isMe ? "are" : "is"
+  const description = [
+    showPresence && `${who} ${verb} ${online ? "online" : "away"}`,
+    faceUp
+      ? `${who} played ${value}`
+      : hasVoted
+        ? `${who} ${seat.isMe ? "have" : "has"} a card down, hidden until the round closes`
+        : `${who} ${verb} still choosing`,
+  ]
+    .filter(Boolean)
+    .join(". ")
+
   return (
     <div
       className={cn(
@@ -66,32 +84,27 @@ function Seat({
       <span className="flex min-w-0 max-w-28 items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <span className="relative flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.625rem] font-bold text-primary">
           {seat.initials}
-          {/* Always rendered, so an away player reads as away rather than as a
-              seat that simply forgot to draw a dot. */}
-          <span
-            className={cn(
-              "absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2 ring-card",
-              online ? "bg-success" : "bg-destructive"
-            )}
-            aria-hidden="true"
-          />
+          {/* Rendered for every seat in a live round, not only the present
+              ones, so an away player reads as away rather than as a seat that
+              forgot to draw a dot. */}
+          {showPresence && (
+            <span
+              className={cn(
+                "absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2 ring-card",
+                online ? "bg-success" : "bg-destructive"
+              )}
+              aria-hidden="true"
+            />
+          )}
         </span>
         <span className="truncate">
           {seat.isMe ? "You" : seat.displayName.split(" ")[0]}
         </span>
       </span>
 
-      {/* The dot is decorative, so presence has to be said in words too. */}
-      <span className="sr-only">
-        {`${seat.isMe ? "You" : seat.displayName} ${
-          seat.isMe ? "are" : "is"
-        } ${online ? "online" : "away"}. `}
-        {faceUp
-          ? `Voted ${value}`
-          : hasVoted
-            ? "Has voted — card hidden until the round closes"
-            : "Still choosing"}
-      </span>
+      {/* The card face and the dot are both decorative, so everything they
+          convey has to be available in words. */}
+      <span className="sr-only">{`${description}.`}</span>
     </div>
   )
 }
