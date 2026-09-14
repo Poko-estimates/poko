@@ -264,6 +264,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      start_round: {
+        Args: { p_game_id: string }
+        Returns: {
+          allow_participant_reveal: boolean
+          auto_close: boolean
+          closed_at: string | null
+          closed_reason: string | null
+          created_at: string
+          deck_name: string
+          deck_values: string[]
+          estimate: string | null
+          id: string
+          name: string
+          owner_id: string
+          round: number
+          round_duration_seconds: number | null
+          round_ends_at: string | null
+          round_started_at: string
+          slug: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "games"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       [_ in never]: never

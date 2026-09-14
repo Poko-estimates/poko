@@ -18,6 +18,7 @@ function Seat({
   optimisticVote,
   revealed,
   seat,
+  urgent = false,
 }: {
   /** Has this person got the room open right now? Presence, not membership. */
   online: boolean
@@ -25,6 +26,8 @@ function Seat({
   optimisticVote?: string | null
   revealed: boolean
   seat: SeatModel
+  /** The round's clock is about to run out. Chases the seats still deciding. */
+  urgent?: boolean
 }) {
   const pending = optimisticVote !== undefined
   const value = pending ? optimisticVote : seat.value
@@ -36,10 +39,15 @@ function Seat({
   // there is nobody left to wait for, so who still has a tab open is noise.
   const showPresence = !revealed
 
+  // Only chase people who can still act on it: a seat with a card already down
+  // has nothing left to hurry about.
+  const chasing = urgent && !hasVoted && !revealed
+
   const who = seat.isMe ? "You" : seat.displayName
   const verb = seat.isMe ? "are" : "is"
   const description = [
     showPresence && `${who} ${verb} ${online ? "online" : "away"}`,
+    chasing && `${who} ${seat.isMe ? "have" : "has"} seconds left to vote`,
     faceUp
       ? `${who} played ${value}`
       : hasVoted
@@ -61,7 +69,12 @@ function Seat({
           "flex h-20 w-15 items-center justify-center rounded-xl px-1 text-center text-xl font-semibold tabular-nums",
           hasVoted
             ? "bg-primary text-white"
-            : "border-2 border-dashed border-border bg-card text-muted-foreground"
+            : "border-2 border-dashed border-border bg-card text-muted-foreground",
+          // Solid border and a pulsing ring. The border carries the warning on
+          // its own, so it survives prefers-reduced-motion collapsing the
+          // animation.
+          chasing &&
+            "animate-urgent-pulse border-solid border-destructive text-destructive"
         )}
       >
         {faceUp ? (

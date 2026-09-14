@@ -135,6 +135,23 @@ export async function retractVote(
 }
 
 /**
+ * Starts the round's clock.
+ *
+ * Separate from creating the game on purpose: a countdown that began when the
+ * dialog closed would already be running before anyone had read the story or
+ * followed the invite link.
+ */
+export async function startRound(gameId: string): Promise<GameResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase.rpc("start_round", { p_game_id: gameId })
+  if (error) return { formError: describe(error) }
+
+  revalidateGame()
+  return {}
+}
+
+/**
  * Ends the round and reveals every card at once.
  *
  * The estimate is not passed in — `close_round` works it out, and records one
@@ -266,6 +283,8 @@ function describe(error: { code?: string; hint?: string | null; message: string 
       return "You're not at this table."
     case "poko_not_owner":
       return "Only the person who created the game can do that."
+    case "poko_no_timebox":
+      return "This game has no timebox to start."
     case "poko_room_missing":
       return "That invite link doesn't match a game."
     case "poko_not_signed_in":

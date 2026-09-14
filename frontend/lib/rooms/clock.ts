@@ -46,4 +46,16 @@ const getSecondsSnapshot = () => seconds
 /** There is no clock on the server — render a placeholder and let the browser fill it in. */
 const getServerSecondsSnapshot = (): number | null => null
 
-export { getSecondsSnapshot, getServerSecondsSnapshot, subscribeToSeconds }
+/** 90 -> "1:30", 5 -> "0:05". Shared so a countdown and a duration agree. */
+function formatSeconds(seconds: number) {
+  const minutes = Math.floor(seconds / 60)
+
+  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`
+}
+
+export {
+  formatSeconds,
+  getSecondsSnapshot,
+  getServerSecondsSnapshot,
+  subscribeToSeconds,
+}

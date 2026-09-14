@@ -3,13 +3,20 @@
 import { useSyncExternalStore } from "react"
 
 import {
+  formatSeconds,
   getSecondsSnapshot,
   getServerSecondsSnapshot,
   subscribeToSeconds,
 } from "@/lib/rooms/clock"
 
+/** Used when there is no deadline, so the shared ticker never starts. */
+const noSubscription = () => () => {}
+
+const IDLE = { label: "--:--", remaining: null, expired: false } as const
+
 /**
- * Counts down to an absolute deadline set by the server.
+ * Counts down to an absolute deadline set by the server. Pass `null` for an
+ * untimed round — the hook then subscribes to nothing at all.
  *
  * Deliberately compared against the browser's own clock, with no skew
  * correction. It cannot change an outcome: the database owns the deadline —
@@ -18,29 +25,26 @@ import {
  * shows a wrong number and nothing more. Correcting it would mean threading a
  * server timestamp through every render to fix something purely cosmetic.
  */
-function useCountdown(deadlineMs: number) {
+function useCountdown(deadlineMs: number | null) {
   const nowSeconds = useSyncExternalStore<number | null>(
-    subscribeToSeconds,
+    deadlineMs === null ? noSubscription : subscribeToSeconds,
     getSecondsSnapshot,
     getServerSecondsSnapshot
   )
 
   // Server render and first client paint agree on the placeholder, so there is
   // nothing for hydration to mismatch on.
-  if (nowSeconds === null) {
-    return { label: "--:--", remaining: null, expired: false }
+  if (deadlineMs === null || nowSeconds === null) {
+    return IDLE
   }
 
   const remaining = Math.max(0, Math.ceil(deadlineMs / 1000) - nowSeconds)
 
-  return { label: format(remaining), remaining, expired: remaining === 0 }
-}
-
-/** 90 -> "1:30", 5 -> "0:05". */
-function format(seconds: number) {
-  const minutes = Math.floor(seconds / 60)
-
-  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`
+  return {
+    label: formatSeconds(remaining),
+    remaining,
+    expired: remaining === 0,
+  }
 }
 
 export { useCountdown }
