@@ -9,7 +9,7 @@ import { FormAlert } from "@/components/auth/form-alert"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { joinRoom } from "@/lib/games/actions"
+import { joinRoom } from "@/lib/issues/actions"
 
 /**
  * The door into a room you were invited to.
@@ -18,7 +18,7 @@ import { joinRoom } from "@/lib/games/actions"
  * means there is genuinely no room data to render behind it. An overlay would
  * imply a table you can see but not touch.
  *
- * It deliberately doesn't name the game. Naming it would require reading the
+ * It deliberately doesn't name the issue. Naming it would require reading the
  * row before you've joined, which is an unauthenticated way to ask "does this
  * slug exist?" — and the invite slug is the capability, so that question
  * shouldn't be answerable without a session. A bad link fails on submit
@@ -59,7 +59,7 @@ function JoinCard({
       <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
         {signedIn
           ? "Take a seat and the table will open."
-          : "Pick a name your team will recognise. No account needed — you can make one later if you want to keep your games."}
+          : "Pick a name your team will recognise. No account needed — you can make one later if you want to keep your issues."}
       </p>
 
       <Form className="mt-6 flex flex-col gap-4" onFormSubmit={handleSubmit}>
@@ -91,7 +91,7 @@ function JoinCard({
             ? "Taking your seat…"
             : signedIn && suggestedName
               ? `Join as ${suggestedName}`
-              : "Join the game"}
+              : "Join the room"}
         </Button>
       </Form>
 

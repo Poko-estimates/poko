@@ -16,7 +16,7 @@ const roomEvents = [
   "participant_joined",
   "participant_left",
   "participant_renamed",
-  "game_updated",
+  "issue_updated",
 ] as const
 
 type RoomEventType = (typeof roomEvents)[number]

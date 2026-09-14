@@ -3,36 +3,36 @@
 import { useState } from "react"
 import { Pencil } from "lucide-react"
 
-import { GameDialog } from "@/components/dashboard/game-dialog"
-import type { Game } from "@/lib/games/model"
+import { IssueDialog } from "@/components/dashboard/issue-dialog"
+import type { Issue } from "@/lib/issues/model"
 import { cn } from "@/lib/utils"
 
 /**
- * Opens the game form pre-filled for editing.
+ * Opens the issue form pre-filled for editing.
  *
  * A thin wrapper so each sidebar row owns its own dialog state. The form reads
- * the game fresh every time it opens, so a name changed by realtime in the
+ * the issue fresh every time it opens, so a name changed by realtime in the
  * meantime shows up rather than being stale.
  */
-function EditGameButton({ game }: { game: Game }) {
+function EditIssueButton({ issue }: { issue: Issue }) {
   const [open, setOpen] = useState(false)
 
   // A closed round is a record of what the team decided. Reopening is the way
   // back to editing, and it's a visible act everyone at the table sees. The
   // database refuses these edits too, so this is a signpost rather than the
   // control.
-  const locked = game.status === "closed"
+  const locked = issue.status === "closed"
 
   return (
     <>
       <button
         type="button"
         disabled={locked}
-        title={locked ? "Reopen the round to edit this game" : undefined}
+        title={locked ? "Reopen the round to edit this issue" : undefined}
         aria-label={
           locked
-            ? `Edit ${game.name} — reopen the round first`
-            : `Edit ${game.name}`
+            ? `Edit ${issue.name} — reopen the round first`
+            : `Edit ${issue.name}`
         }
         onClick={() => setOpen(true)}
         className={cn(
@@ -46,10 +46,10 @@ function EditGameButton({ game }: { game: Game }) {
       </button>
 
       {!locked && (
-        <GameDialog game={game} open={open} onOpenChange={setOpen} />
+        <IssueDialog issue={issue} open={open} onOpenChange={setOpen} />
       )}
     </>
   )
 }
 
-export { EditGameButton }
+export { EditIssueButton }

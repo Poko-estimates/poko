@@ -42,7 +42,7 @@ function WelcomeToast({ kind }: { kind: string | undefined }) {
   const greet = useEffectEvent((welcome: Welcome) => {
     toast.add({ type: "success", title: messages[welcome] })
 
-    // Preserve everything except the marker, so an open game stays open.
+    // Preserve everything except the marker, so an open issue stays open.
     const next = new URLSearchParams(searchParams)
     next.delete("welcome")
     const query = next.toString()

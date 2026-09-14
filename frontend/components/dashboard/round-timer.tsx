@@ -9,13 +9,13 @@ import { cn } from "@/lib/utils"
 /**
  * The round's countdown, kept in its own component on purpose: it re-renders
  * once a second, and nothing else in the room should redraw at that rate.
- * A game with no timebox never renders this, so the ticker never even starts.
+ * An issue with no timebox never renders this, so the ticker never even starts.
  */
 function RoundTimer({
   deadline,
   onExpire,
 }: {
-  /** ISO timestamp from the server — `games.round_ends_at`. */
+  /** ISO timestamp from the server — `issues.round_ends_at`. */
   deadline: string
   onExpire?: () => void
 }) {

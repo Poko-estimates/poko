@@ -1,25 +1,25 @@
 import type { Tables } from "@/lib/supabase/database.types"
 
-type GameRow = Tables<"games">
+type IssueRow = Tables<"issues">
 
 type Deck = {
   name: string
   values: string[]
 }
 
-const gameStatuses = ["voting", "closed"] as const
-type GameStatus = (typeof gameStatuses)[number]
+const issueStatuses = ["voting", "closed"] as const
+type IssueStatus = (typeof issueStatuses)[number]
 
-/** A game, as both the sidebar and the room need it. */
-type Game = {
+/** An issue, as both the sidebar and the room need it. */
+type Issue = {
   id: string
   slug: string
   name: string
   deckName: string
-  status: GameStatus
+  status: IssueStatus
   estimate: string | null
   round: number
-  /** The sidebar only offers destructive actions on your own games. */
+  /** The sidebar only offers destructive actions on your own issues. */
   isOwner: boolean
   deck: Deck
   /** What the team is estimating, or null when the name says it all. */
@@ -29,7 +29,7 @@ type Game = {
 }
 
 
-type GameDraft = {
+type IssueDraft = {
   name: string
   deck: Deck
   /** Optional. Blank is normalised to null rather than stored as "". */
@@ -57,7 +57,7 @@ type Seat = {
 }
 
 /** Everything the room renders from. */
-type RoomState = Game & {
+type RoomState = Issue & {
   seats: Seat[]
   /** The signed-in player's own seat. */
   me: Seat | null
@@ -70,21 +70,21 @@ type RoomState = Game & {
  * this code have diverged, which is a bug worth surfacing loudly instead of
  * quietly rendering the room as though voting were still open.
  */
-function toGameStatus(value: string): GameStatus {
-  if ((gameStatuses as readonly string[]).includes(value)) {
-    return value as GameStatus
+function toIssueStatus(value: string): IssueStatus {
+  if ((issueStatuses as readonly string[]).includes(value)) {
+    return value as IssueStatus
   }
 
-  throw new Error(`Unknown game status from the database: ${value}`)
+  throw new Error(`Unknown issue status from the database: ${value}`)
 }
 
-function toGame(row: GameRow, userId: string): Game {
+function toIssue(row: IssueRow, userId: string): Issue {
   return {
     id: row.id,
     slug: row.slug,
     name: row.name,
     deckName: row.deck_name,
-    status: toGameStatus(row.status),
+    status: toIssueStatus(row.status),
     estimate: row.estimate,
     round: row.round,
     isOwner: row.owner_id === userId,
@@ -105,13 +105,13 @@ function initialsFor(name: string) {
   return letters.toUpperCase()
 }
 
-export { gameStatuses, initialsFor, toGame, toGameStatus }
+export { initialsFor, issueStatuses, toIssue, toIssueStatus }
 export type {
   Deck,
-  Game,
-  GameDraft,
-  GameRow,
-  GameStatus,
+  Issue,
+  IssueDraft,
+  IssueRow,
+  IssueStatus,
   RoomState,
   Seat,
 }

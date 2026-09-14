@@ -4,23 +4,25 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 import { maxDeckValues, maxSummaryLength, minDeckValues } from "@/lib/decks"
-import type { GameDraft } from "@/lib/games/model"
+import type { IssueDraft } from "@/lib/issues/model"
 import { createClient } from "@/lib/supabase/server"
 
 /**
  * What a form gets back when the action does not redirect — same contract as
  * `AuthResult` in `lib/auth/actions.ts`. `formError` renders above the fields.
  */
-export type GameResult = {
+export type IssueResult = {
   formError?: string
 }
 
-export type CreateGameResult = GameResult & {
+export type CreateIssueResult = IssueResult & {
   /** Present on success, so the caller can open the room it just created. */
   slug?: string
 }
 
-export async function createGame(draft: GameDraft): Promise<CreateGameResult> {
+export async function createIssue(
+  draft: IssueDraft
+): Promise<CreateIssueResult> {
   const fields = validateDraft(draft)
   if (!fields.ok) return { formError: fields.formError }
 
@@ -30,7 +32,7 @@ export async function createGame(draft: GameDraft): Promise<CreateGameResult> {
   // owner_id and slug are absent on purpose: the database supplies both, and
   // the client holds no grant on either column.
   const { data, error } = await supabase
-    .from("games")
+    .from("issues")
     .insert({
       name,
       summary,
@@ -57,28 +59,28 @@ export async function createGame(draft: GameDraft): Promise<CreateGameResult> {
  * conditions, not authorization failures.
  */
 export async function castVote(
-  gameId: string,
+  issueId: string,
   round: number,
   value: string
-): Promise<GameResult> {
+): Promise<IssueResult> {
   const supabase = await createClient()
 
   // Insert first, then fall back to an update, rather than one upsert.
   //
   // PostgREST's ON CONFLICT DO UPDATE assigns every column in the payload, so
-  // an upsert needs UPDATE on game_id and round as well as value — and the
+  // an upsert needs UPDATE on issue_id and round as well as value — and the
   // client deliberately only holds UPDATE on `value`, so that a card can never
-  // be moved to a different round or a different game. One extra round trip
+  // be moved to a different round or a different issue. One extra round trip
   // when changing your mind is the right price for that narrower grant.
   //
   // user_id is absent from both calls on purpose: it defaults to auth.uid()
   // and the client holds no grant on it, so nobody can vote as someone else.
   const insert = await supabase
     .from("votes")
-    .insert({ game_id: gameId, round, value })
+    .insert({ issue_id: issueId, round, value })
 
   if (!insert.error) {
-    revalidateGame()
+    revalidateIssue()
     return {}
   }
 
@@ -92,57 +94,57 @@ export async function castVote(
   const { error } = await supabase
     .from("votes")
     .update({ value })
-    .eq("game_id", gameId)
+    .eq("issue_id", issueId)
     .eq("round", round)
 
   if (error) return { formError: describe(error) }
 
-  revalidateGame()
+  revalidateIssue()
   return {}
 }
 
 /** Takes your card back off the table. */
 export async function retractVote(
-  gameId: string,
+  issueId: string,
   round: number
-): Promise<GameResult> {
+): Promise<IssueResult> {
   const supabase = await createClient()
 
   // RLS narrows this to your own row; there is no way to clear anyone else's.
   const { error } = await supabase
     .from("votes")
     .delete()
-    .eq("game_id", gameId)
+    .eq("issue_id", issueId)
     .eq("round", round)
 
   if (error) return { formError: describe(error) }
 
-  revalidateGame()
+  revalidateIssue()
   return {}
 }
 
 /**
- * Edits a game's name, summary, deck or timebox.
+ * Edits an issue's name, summary, deck or timebox.
  *
  * Only the columns the client holds a grant on — status, round, estimate and
  * slug are not among them, so this cannot move the round. Owner-only, via the
- * `games_update_owner` policy.
+ * `issues_update_owner` policy.
  *
  * Changing the deck once cards are down is refused by the
- * `poko_games_before_update` trigger, not by a check here, so it holds however
+ * `poko_issues_before_update` trigger, not by a check here, so it holds however
  * the update arrives.
  */
-export async function updateGame(
-  gameId: string,
-  draft: GameDraft
-): Promise<GameResult> {
+export async function updateIssue(
+  issueId: string,
+  draft: IssueDraft
+): Promise<IssueResult> {
   const fields = validateDraft(draft)
   if (!fields.ok) return { formError: fields.formError }
 
   const supabase = await createClient()
 
   const { data, error } = await supabase
-    .from("games")
+    .from("issues")
     .update({
       name: fields.name,
       summary: fields.summary,
@@ -150,61 +152,89 @@ export async function updateGame(
       deck_values: fields.values,
       round_duration_seconds: draft.timeboxSeconds,
     })
-    .eq("id", gameId)
+    .eq("id", issueId)
     .select("slug")
 
   if (error) return { formError: describe(error) }
   if (!data?.length) {
-    return { formError: "That game is gone, or isn't yours to edit." }
+    return { formError: "That issue is gone, or isn't yours to edit." }
   }
 
-  revalidateGame()
+  revalidateIssue()
   return {}
 }
 
 /**
- * Deletes a game and everything hanging off it — seats, and every round's
- * cards — in one cascade. There is no undo and no soft delete, which is why
- * the UI puts a confirmation in front of it.
+ * Deletes an issue and everything hanging off it — seats, every round's cards,
+ * and everyone's ordering of it — in one cascade. There is no undo and no soft
+ * delete, which is why the UI puts a confirmation in front of it.
  *
- * Owner only, enforced by the `games_delete_owner` policy rather than checked
+ * Owner only, enforced by the `issues_delete_owner` policy rather than checked
  * here: a participant calling this simply matches no rows.
  */
-export async function deleteGame(gameId: string): Promise<GameResult> {
+export async function deleteIssue(issueId: string): Promise<IssueResult> {
   const supabase = await createClient()
 
   // `.select()` so we can tell "deleted" from "matched nothing". RLS turns a
   // non-owner's delete into zero rows rather than an error, which would
   // otherwise look like success.
   const { data, error } = await supabase
-    .from("games")
+    .from("issues")
     .delete()
-    .eq("id", gameId)
+    .eq("id", issueId)
     .select("id")
 
   if (error) return { formError: describe(error) }
   if (!data?.length) {
-    return { formError: "That game is already gone, or isn't yours to delete." }
+    return { formError: "That issue is already gone, or isn't yours to delete." }
   }
 
-  revalidateGame()
+  revalidateIssue()
+  return {}
+}
+
+/**
+ * Stores the order you just dragged your list into.
+ *
+ * Takes the whole list rather than "move this one to index N": the panel
+ * already knows the order it is rendering, one statement is atomic where a
+ * read-modify-write pair is not, and it means a list that has drifted for any
+ * reason is repaired by the next drop.
+ *
+ * The order is yours alone — `issue_order` is keyed on the viewer — so this is
+ * safe to call for issues you merely have a seat at. `reorder_issues` drops
+ * any id you cannot see rather than refusing the call, so a stale tab still
+ * saves the rest of its order.
+ */
+export async function reorderIssues(
+  issueIds: string[]
+): Promise<IssueResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase.rpc("reorder_issues", {
+    p_issue_ids: issueIds,
+  })
+
+  if (error) return { formError: describe(error) }
+
+  revalidateIssue()
   return {}
 }
 
 /**
  * Starts the round's clock.
  *
- * Separate from creating the game on purpose: a countdown that began when the
+ * Separate from creating the issue on purpose: a countdown that began when the
  * dialog closed would already be running before anyone had read the story or
  * followed the invite link.
  */
-export async function startRound(gameId: string): Promise<GameResult> {
+export async function startRound(issueId: string): Promise<IssueResult> {
   const supabase = await createClient()
 
-  const { error } = await supabase.rpc("start_round", { p_game_id: gameId })
+  const { error } = await supabase.rpc("start_round", { p_issue_id: issueId })
   if (error) return { formError: describe(error) }
 
-  revalidateGame()
+  revalidateIssue()
   return {}
 }
 
@@ -215,33 +245,33 @@ export async function startRound(gameId: string): Promise<GameResult> {
  * only if every card matches. An estimate the team did not agree on is not an
  * estimate.
  */
-export async function closeRound(gameId: string): Promise<GameResult> {
+export async function closeRound(issueId: string): Promise<IssueResult> {
   const supabase = await createClient()
 
-  const { error } = await supabase.rpc("close_round", { p_game_id: gameId })
+  const { error } = await supabase.rpc("close_round", { p_issue_id: issueId })
   if (error) return { formError: describe(error) }
 
-  revalidateGame()
+  revalidateIssue()
   return {}
 }
 
 /** Starts a fresh pass. The previous round's cards are kept, not deleted. */
-export async function reopenRound(gameId: string): Promise<GameResult> {
+export async function reopenRound(issueId: string): Promise<IssueResult> {
   const supabase = await createClient()
 
-  const { error } = await supabase.rpc("reopen_round", { p_game_id: gameId })
+  const { error } = await supabase.rpc("reopen_round", { p_issue_id: issueId })
   if (error) return { formError: describe(error) }
 
-  revalidateGame()
+  revalidateIssue()
   return {}
 }
 
 /**
- * Takes a seat at a game from its invite link.
+ * Takes a seat at an issue from its invite link.
  *
  * Possession of the slug is the invitation — there is no RLS formulation of
  * "you may read the row whose slug you can name" — so joining goes through the
- * `join_game` function rather than a direct insert. It is idempotent, so
+ * `join_issue` function rather than a direct insert. It is idempotent, so
  * re-opening the link is harmless.
  *
  * This runs as a server action rather than in the browser on purpose: the
@@ -253,7 +283,7 @@ export async function reopenRound(gameId: string): Promise<GameResult> {
 export async function joinRoom(
   slug: string,
   displayName: string
-): Promise<GameResult> {
+): Promise<IssueResult> {
   const name = displayName.trim()
   if (!name) return { formError: "Pick a name your team will recognise." }
 
@@ -281,7 +311,7 @@ export async function joinRoom(
     }
   }
 
-  const { error } = await supabase.rpc("join_game", {
+  const { error } = await supabase.rpc("join_issue", {
     p_slug: slug,
     p_display_name: name,
   })
@@ -302,7 +332,7 @@ export async function joinRoom(
  * broadcast, which tells every client at once instead of only the one that
  * acted.
  */
-function revalidateGame() {
+function revalidateIssue() {
   revalidatePath("/dashboard")
 }
 
@@ -322,10 +352,10 @@ type ValidDraft = {
 }
 
 function validateDraft(
-  draft: GameDraft
+  draft: IssueDraft
 ): ValidDraft | { ok: false; formError: string } {
   const name = draft.name.trim()
-  if (!name) return { ok: false, formError: "Give the game a name." }
+  if (!name) return { ok: false, formError: "Give the issue a name." }
 
   const deckName = draft.deck.name.trim()
   if (!deckName) return { ok: false, formError: "Give the deck a name." }
@@ -354,7 +384,7 @@ function validateDraft(
   return { ok: true, name, deckName, values, summary }
 }
 
-/** Trim, drop blanks, drop repeats — mirrors the deck CHECK on `games`. */
+/** Trim, drop blanks, drop repeats — mirrors the deck CHECK on `issues`. */
 function normaliseDeckValues(values: string[]) {
   const seen = new Set<string>()
 
@@ -383,26 +413,29 @@ function describe(error: { code?: string; hint?: string | null; message: string 
     case "poko_stale_round":
       return "This round was reopened while you were choosing. Have another look."
     case "poko_value_not_in_deck":
-      return "That card isn't in this game's deck."
+      return "That card isn't in this issue's deck."
     case "poko_not_participant":
       return "You're not at this table."
     case "poko_not_owner":
-      return "Only the person who created the game can do that."
+      return "Only the person who created the issue can do that."
     case "poko_no_timebox":
-      return "This game has no timebox to start."
-    case "poko_game_closed":
-      return "Reopen the round before editing this game."
+      return "This issue has no timebox to start."
+    case "poko_issue_closed":
+      return "Reopen the round before editing this issue."
     case "poko_deck_locked":
       return "Cards are already down — the deck can't change mid-round."
     case "poko_room_missing":
-      return "That invite link doesn't match a game."
+      return "That invite link doesn't match an issue."
     case "poko_not_signed_in":
-      return "Sign in before joining a game."
+      return "Sign in before joining an issue."
+    case "poko_order_missing":
+    case "poko_order_too_long":
+      return "Couldn't save that order. Reload and try again."
   }
 
   // 42501 is an RLS or grant denial; PGRST116 is "no rows" from a .single().
-  if (error.code === "42501") return "You don't have access to that game."
-  if (error.code === "PGRST116") return "That game no longer exists."
+  if (error.code === "42501") return "You don't have access to that issue."
+  if (error.code === "PGRST116") return "That issue no longer exists."
   if (error.code === "23514") return "That deck isn't valid."
 
   return error.message

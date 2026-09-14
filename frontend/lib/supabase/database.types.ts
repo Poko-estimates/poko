@@ -9,10 +9,39 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      game_participants: {
+      issue_order: {
+        Row: {
+          issue_id: string
+          sort_order: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          issue_id: string
+          sort_order: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          issue_id?: string
+          sort_order?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issue_order_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      issue_participants: {
         Row: {
           display_name: string
-          game_id: string
+          issue_id: string
           joined_at: string
           user_id: string
           voted_at: string | null
@@ -20,7 +49,7 @@ export type Database = {
         }
         Insert: {
           display_name: string
-          game_id: string
+          issue_id: string
           joined_at?: string
           user_id?: string
           voted_at?: string | null
@@ -28,7 +57,7 @@ export type Database = {
         }
         Update: {
           display_name?: string
-          game_id?: string
+          issue_id?: string
           joined_at?: string
           user_id?: string
           voted_at?: string | null
@@ -36,15 +65,15 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "game_participants_game_id_fkey"
-            columns: ["game_id"]
+            foreignKeyName: "issue_participants_issue_id_fkey"
+            columns: ["issue_id"]
             isOneToOne: false
-            referencedRelation: "games"
+            referencedRelation: "issues"
             referencedColumns: ["id"]
           },
         ]
       }
-      games: {
+      issues: {
         Row: {
           allow_participant_reveal: boolean
           auto_close: boolean
@@ -131,7 +160,7 @@ export type Database = {
       votes: {
         Row: {
           created_at: string
-          game_id: string
+          issue_id: string
           round: number
           updated_at: string
           user_id: string
@@ -139,7 +168,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          game_id: string
+          issue_id: string
           round: number
           updated_at?: string
           user_id?: string
@@ -147,7 +176,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          game_id?: string
+          issue_id?: string
           round?: number
           updated_at?: string
           user_id?: string
@@ -156,10 +185,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "votes_participant_fkey"
-            columns: ["game_id", "user_id"]
+            columns: ["issue_id", "user_id"]
             isOneToOne: false
-            referencedRelation: "game_participants"
-            referencedColumns: ["game_id", "user_id"]
+            referencedRelation: "issue_participants"
+            referencedColumns: ["issue_id", "user_id"]
           },
         ]
       }
@@ -169,7 +198,7 @@ export type Database = {
     }
     Functions: {
       close_round: {
-        Args: { p_game_id: string }
+        Args: { p_issue_id: string }
         Returns: {
           allow_participant_reveal: boolean
           auto_close: boolean
@@ -193,14 +222,14 @@ export type Database = {
         }
         SetofOptions: {
           from: "*"
-          to: "games"
+          to: "issues"
           isOneToOne: true
           isSetofReturn: false
         }
       }
       deactivate_own_account: { Args: never; Returns: undefined }
       delete_own_account: { Args: never; Returns: undefined }
-      join_game: {
+      join_issue: {
         Args: { p_display_name?: string; p_slug: string }
         Returns: {
           allow_participant_reveal: boolean
@@ -225,14 +254,14 @@ export type Database = {
         }
         SetofOptions: {
           from: "*"
-          to: "games"
+          to: "issues"
           isOneToOne: true
           isSetofReturn: false
         }
       }
       poko_deck_values_ok: { Args: { vals: string[] }; Returns: boolean }
       reopen_round: {
-        Args: { p_game_id: string }
+        Args: { p_issue_id: string }
         Returns: {
           allow_participant_reveal: boolean
           auto_close: boolean
@@ -256,13 +285,14 @@ export type Database = {
         }
         SetofOptions: {
           from: "*"
-          to: "games"
+          to: "issues"
           isOneToOne: true
           isSetofReturn: false
         }
       }
+      reorder_issues: { Args: { p_issue_ids: string[] }; Returns: undefined }
       set_estimate: {
-        Args: { p_estimate: string; p_game_id: string }
+        Args: { p_estimate: string; p_issue_id: string }
         Returns: {
           allow_participant_reveal: boolean
           auto_close: boolean
@@ -286,13 +316,13 @@ export type Database = {
         }
         SetofOptions: {
           from: "*"
-          to: "games"
+          to: "issues"
           isOneToOne: true
           isSetofReturn: false
         }
       }
       start_round: {
-        Args: { p_game_id: string }
+        Args: { p_issue_id: string }
         Returns: {
           allow_participant_reveal: boolean
           auto_close: boolean
@@ -316,7 +346,7 @@ export type Database = {
         }
         SetofOptions: {
           from: "*"
-          to: "games"
+          to: "issues"
           isOneToOne: true
           isSetofReturn: false
         }

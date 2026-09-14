@@ -72,7 +72,7 @@ export async function deactivateAccount(): Promise<AccountResult> {
  *
  * `delete_own_account` takes no arguments — there is nothing to point at
  * anyone else — and the cascade from `auth.users` removes the profile, every
- * seat, every vote and every game owned.
+ * seat, every vote and every issue owned.
  */
 export async function deleteAccount(): Promise<AccountResult> {
   const supabase = await createClient()

@@ -11,7 +11,7 @@ type DeckPreset = Deck & {
   tagline: string
 }
 
-/** The ready-made decks offered in the create-game dialog. */
+/** The ready-made decks offered in the create-issue dialog. */
 const deckPresets: DeckPreset[] = [
   {
     id: "fibonacci",
@@ -39,7 +39,7 @@ const maxDeckValues = 16
 /** Fewer than this and there is nothing to choose between. */
 const minDeckValues = 2
 
-/** Mirrors the `games_summary_length` CHECK on the games table. */
+/** Mirrors the `issues_summary_length` CHECK on the issues table. */
 const maxSummaryLength = 500
 
 /**

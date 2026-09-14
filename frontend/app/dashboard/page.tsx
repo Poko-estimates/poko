@@ -8,11 +8,11 @@ import { AppHeader } from "@/components/site/app-header"
 import { UserMenu } from "@/components/site/user-menu"
 import { Container } from "@/components/site/container"
 import { initialsFor } from "@/lib/account/model"
-import { getRoomState, listGames } from "@/lib/games/queries"
+import { getRoomState, listIssues } from "@/lib/issues/queries"
 import { createClient } from "@/lib/supabase/server"
 
 export const metadata: Metadata = {
-  title: "Your games",
+  title: "Your issues",
   description: "Your live Poko estimation rooms.",
 }
 
@@ -25,16 +25,16 @@ export default async function Page({ searchParams }: PageProps<"/dashboard">) {
 
   if (!email || !userId) redirect("/login")
 
-  const { game, welcome } = await searchParams
+  const { issue, welcome } = await searchParams
 
   const fullName = readFullName(claims) || email.split("@")[0]
 
-  const games = await listGames(userId)
-  const requested = typeof game === "string" ? game : null
+  const issues = await listIssues(userId)
+  const requested = typeof issue === "string" ? issue : null
   const activeSlug =
-    (requested && games.some((row) => row.slug === requested)
+    (requested && issues.some((row) => row.slug === requested)
       ? requested
-      : games[0]?.slug) ?? null
+      : issues[0]?.slug) ?? null
 
   const room = activeSlug ? await getRoomState(activeSlug, userId) : null
 
@@ -59,12 +59,12 @@ export default async function Page({ searchParams }: PageProps<"/dashboard">) {
               Good to see you, {firstNameOf(fullName)}
             </h1>
             <p className="mt-2 leading-relaxed text-muted-foreground">
-              Set up a game, deal the deck, and get the team to a number they
+              Set up an issue, deal the deck, and get the team to a number they
               all agree on.
             </p>
           </div>
 
-          <DashboardShell games={games} activeSlug={activeSlug}>
+          <DashboardShell issues={issues} activeSlug={activeSlug}>
             {room && <SessionRoom room={room} />}
           </DashboardShell>
         </Container>
