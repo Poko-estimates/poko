@@ -18,13 +18,14 @@ type GameSummary = {
   status: GameStatus
   estimate: string | null
   round: number
+  /** The sidebar only offers destructive actions on your own games. */
+  isOwner: boolean
 }
 
 type GameDetail = GameSummary & {
   deck: Deck
   timeboxSeconds: number | null
   roundEndsAt: string | null
-  isOwner: boolean
 }
 
 type GameDraft = {
@@ -74,7 +75,7 @@ function toGameStatus(value: string): GameStatus {
   throw new Error(`Unknown game status from the database: ${value}`)
 }
 
-function toGameSummary(row: GameRow): GameSummary {
+function toGameSummary(row: GameRow, userId: string): GameSummary {
   return {
     id: row.id,
     slug: row.slug,
@@ -83,16 +84,16 @@ function toGameSummary(row: GameRow): GameSummary {
     status: toGameStatus(row.status),
     estimate: row.estimate,
     round: row.round,
+    isOwner: row.owner_id === userId,
   }
 }
 
 function toGameDetail(row: GameRow, userId: string): GameDetail {
   return {
-    ...toGameSummary(row),
+    ...toGameSummary(row, userId),
     deck: { name: row.deck_name, values: row.deck_values },
     timeboxSeconds: row.round_duration_seconds,
     roundEndsAt: row.round_ends_at,
-    isOwner: row.owner_id === userId,
   }
 }
 

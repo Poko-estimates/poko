@@ -3,18 +3,19 @@
 import { startTransition, useOptimistic, useState } from "react"
 import { Lock, Play, RotateCcw, Timer, Users } from "lucide-react"
 
-import { FormAlert } from "@/components/auth/form-alert"
 import { InviteLink } from "@/components/dashboard/invite-link"
 import { RoundOverNotice } from "@/components/dashboard/round-over-notice"
 import { RoundTimer } from "@/components/dashboard/round-timer"
 import { Seat } from "@/components/dashboard/seat"
 import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/toast"
 import {
   castVote,
   closeRound,
   reopenRound,
   retractVote,
   startRound,
+  type GameResult,
 } from "@/lib/games/actions"
 import type { RoomState } from "@/lib/games/model"
 import { formatSeconds } from "@/lib/rooms/clock"
@@ -61,7 +62,7 @@ function describeClose(payload: Record<string, unknown>): Burst | null {
 
 /** The live estimation room for one game. */
 function SessionRoom({ room }: { room: RoomState }) {
-  const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
   const [burst, setBurst] = useState<Burst | null>(null)
 
   // Realtime is a signal, not a source: every event just asks the server for
@@ -103,8 +104,6 @@ function SessionRoom({ room }: { room: RoomState }) {
   const lastCall = remaining !== null && remaining > 0 && remaining <= 5
 
   function play(value: string | null) {
-    setError(null)
-
     startTransition(async () => {
       setOptimisticVote(value)
 
@@ -113,10 +112,11 @@ function SessionRoom({ room }: { room: RoomState }) {
           ? await retractVote(room.id, room.round)
           : await castVote(room.id, room.round, value)
 
-      // State updates after an await are not automatically part of the
-      // transition, so they need their own.
+      // A rejected card is worth saying out loud: the optimistic value snaps
+      // back on its own, which without an explanation just looks like the tap
+      // didn't register.
       if (result.formError) {
-        startTransition(() => setError(result.formError ?? null))
+        toast.add({ type: "error", title: result.formError })
       }
     })
   }
@@ -138,14 +138,23 @@ function SessionRoom({ room }: { room: RoomState }) {
     })
   }
 
-  function settle(action: () => Promise<{ formError?: string }>) {
-    setError(null)
-
+  /**
+   * Runs one of the round controls and reports the outcome in a toast.
+   *
+   * `success` is omitted where the room itself is the confirmation — starting
+   * the clock swaps the button for a countdown, and a toast on top of that is
+   * just noise.
+   */
+  function run(action: () => Promise<GameResult>, success?: string) {
     startTransition(async () => {
       const result = await action()
+
       if (result.formError) {
-        startTransition(() => setError(result.formError ?? null))
+        toast.add({ type: "error", title: result.formError })
+        return
       }
+
+      if (success) toast.add({ type: "success", title: success })
     })
   }
 
@@ -216,7 +225,7 @@ function SessionRoom({ room }: { room: RoomState }) {
                   type="button"
                   variant="outline"
                   size="lg"
-                  onClick={() => settle(() => startRound(room.id))}
+                  onClick={() => run(() => startRound(room.id))}
                 >
                   <Play className="size-4" aria-hidden="true" />
                   Start {formatSeconds(room.timeboxSeconds)} timer
@@ -233,8 +242,6 @@ function SessionRoom({ room }: { room: RoomState }) {
             </span>
           </div>
         </div>
-
-        {error && <FormAlert>{error}</FormAlert>}
 
         {/* The table */}
         <div className="flex flex-col gap-5 rounded-2xl bg-surface p-4 sm:p-5">
@@ -328,7 +335,12 @@ function SessionRoom({ room }: { room: RoomState }) {
                 type="button"
                 variant="outline"
                 size="lg"
-                onClick={() => settle(() => reopenRound(room.id))}
+                onClick={() =>
+                  run(
+                    () => reopenRound(room.id),
+                    `Round ${room.round + 1} open — every card cleared`
+                  )
+                }
               >
                 <RotateCcw className="size-4" aria-hidden="true" />
                 Reopen voting
@@ -339,7 +351,9 @@ function SessionRoom({ room }: { room: RoomState }) {
                 variant="default"
                 size="lg"
                 disabled={room.votedCount === 0}
-                onClick={() => settle(() => closeRound(room.id))}
+                onClick={() =>
+                  run(() => closeRound(room.id), "Round closed — cards revealed")
+                }
               >
                 <Lock className="size-4" aria-hidden="true" />
                 Close voting now

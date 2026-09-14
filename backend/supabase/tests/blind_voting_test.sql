@@ -23,7 +23,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(41);
+select plan(43);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -438,10 +438,29 @@ select is(
 -- game that had ever been voted in would fail — and so would deleting a user,
 -- which cascades to the games they own.
 -- ---------------------------------------------------------------------------
+-- A participant deleting is not an error, it simply matches no rows — which
+-- is why the action checks the returned count rather than trusting a silent
+-- success.
+select pg_temp.act_as(:'player_id');
+delete from public.games where id = :'game_id'::uuid;
+
+select pg_temp.act_as_postgres();
+select isnt_empty(
+  format($$ select 1 from public.games where id = %L $$, :'game_id'),
+  'a participant''s delete matches no rows — the game survives'
+);
+
 select pg_temp.act_as(:'owner_id');
 select lives_ok(
   format($$ delete from public.games where id = %L $$, :'game_id'),
   'a game that has votes can be deleted (cascade reaches the vote guard)'
+);
+
+select pg_temp.act_as_postgres();
+select is(
+  (select count(*)::int from public.votes where game_id = :'game_id'::uuid),
+  0,
+  'deleting a game takes its cards with it'
 );
 
 

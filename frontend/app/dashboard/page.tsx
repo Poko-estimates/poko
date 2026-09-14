@@ -4,7 +4,7 @@ import { redirect } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { SessionRoom } from "@/components/dashboard/session-room"
 import { SignOutButton } from "@/components/dashboard/sign-out-button"
-import { WelcomeAlert } from "@/components/dashboard/welcome-alert"
+import { WelcomeToast } from "@/components/dashboard/welcome-toast"
 import { AppHeader } from "@/components/site/app-header"
 import { Container } from "@/components/site/container"
 import { getRoomState, listGames } from "@/lib/games/queries"
@@ -28,7 +28,7 @@ export default async function Page({ searchParams }: PageProps<"/dashboard">) {
 
   const fullName = readFullName(claims) || email.split("@")[0]
 
-  const games = await listGames()
+  const games = await listGames(userId)
   const requested = typeof game === "string" ? game : null
   const activeSlug =
     (requested && games.some((row) => row.slug === requested)
@@ -43,7 +43,7 @@ export default async function Page({ searchParams }: PageProps<"/dashboard">) {
 
       <main className="flex-1 py-8 sm:py-12">
         <Container className="flex flex-col gap-6">
-          <WelcomeAlert kind={typeof welcome === "string" ? welcome : undefined} />
+          <WelcomeToast kind={typeof welcome === "string" ? welcome : undefined} />
 
           <div>
             <h1 className="text-2xl leading-tight font-semibold tracking-tight text-primary sm:text-3xl">

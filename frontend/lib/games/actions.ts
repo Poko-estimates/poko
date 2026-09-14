@@ -135,6 +135,35 @@ export async function retractVote(
 }
 
 /**
+ * Deletes a game and everything hanging off it — seats, and every round's
+ * cards — in one cascade. There is no undo and no soft delete, which is why
+ * the UI puts a confirmation in front of it.
+ *
+ * Owner only, enforced by the `games_delete_owner` policy rather than checked
+ * here: a participant calling this simply matches no rows.
+ */
+export async function deleteGame(gameId: string): Promise<GameResult> {
+  const supabase = await createClient()
+
+  // `.select()` so we can tell "deleted" from "matched nothing". RLS turns a
+  // non-owner's delete into zero rows rather than an error, which would
+  // otherwise look like success.
+  const { data, error } = await supabase
+    .from("games")
+    .delete()
+    .eq("id", gameId)
+    .select("id")
+
+  if (error) return { formError: describe(error) }
+  if (!data?.length) {
+    return { formError: "That game is already gone, or isn't yours to delete." }
+  }
+
+  revalidateGame()
+  return {}
+}
+
+/**
  * Starts the round's clock.
  *
  * Separate from creating the game on purpose: a countdown that began when the
