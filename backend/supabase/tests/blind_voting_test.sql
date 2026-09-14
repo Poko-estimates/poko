@@ -23,7 +23,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(65);
+select plan(68);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -639,6 +639,51 @@ select is(
   (select count(*)::int from public.issue_order),
   2,
   'a participant reordering their own list leaves the owner''s order alone'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Clearing your issues in bulk cannot reach anyone else's
+--
+-- The sidebar's "clear voted" / "clear all" are plain filtered deletes, leaning
+-- on issues_delete_owner to scope them rather than naming owner_id as the
+-- authority. This is that assumption, asserted: the list you clear from shows
+-- issues you merely have a seat at, and a filter that matches them must still
+-- come away with nothing.
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+
+insert into public.issues (name, deck_name, deck_values)
+values ('Not yours to clear', 'Fibonacci', array['1','2','3']);
+
+select id as bulk_id, slug as bulk_slug
+  from public.issues where name = 'Not yours to clear'
+\gset
+
+select pg_temp.act_as(:'player_id');
+select public.join_issue(:'bulk_slug', 'Kojo');
+
+-- Closed, so it is a *voted* issue: it matches the narrower clear as well as
+-- the broader one, which makes it the row most at risk.
+select pg_temp.act_as(:'owner_id');
+select public.close_round(:'bulk_id');
+
+select pg_temp.act_as(:'player_id');
+
+select lives_ok(
+  $$ delete from public.issues where status = 'closed' $$,
+  'clearing voted issues succeeds even when someone else''s match the filter'
+);
+
+select lives_ok(
+  $$ delete from public.issues $$,
+  'clearing all issues succeeds without owning any of the ones in view'
+);
+
+select pg_temp.act_as_postgres();
+select isnt_empty(
+  format($$ select 1 from public.issues where id = %L $$, :'bulk_id'),
+  'a bulk clear took nothing owned by somebody else'
 );
 
 

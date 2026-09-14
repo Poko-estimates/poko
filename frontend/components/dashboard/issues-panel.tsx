@@ -4,6 +4,7 @@ import { startTransition, useOptimistic, useRef } from "react"
 import Link from "next/link"
 import { CheckCircle2, GripVertical, Plus } from "lucide-react"
 
+import { ClearIssuesMenu } from "@/components/dashboard/clear-issues-menu"
 import { DeleteIssueDialog } from "@/components/dashboard/delete-issue-dialog"
 import { EditIssueButton } from "@/components/dashboard/edit-issue-button"
 import { Button } from "@/components/ui/button"
@@ -92,10 +93,13 @@ function IssuesPanel({
                 : `${issues.length} created · ${open} still voting`}
             </p>
           </div>
-          <Button type="button" variant="secondary" size="sm" onClick={onCreate}>
-            <Plus className="size-3.5" aria-hidden="true" />
-            New
-          </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button type="button" variant="secondary" size="sm" onClick={onCreate}>
+              <Plus className="size-3.5" aria-hidden="true" />
+              New
+            </Button>
+            <ClearIssuesMenu issues={issues} activeSlug={activeSlug} />
+          </div>
         </div>
 
         {issues.length === 0 ? (

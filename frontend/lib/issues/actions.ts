@@ -193,6 +193,59 @@ export async function deleteIssue(issueId: string): Promise<IssueResult> {
   return {}
 }
 
+/** Which issues a bulk clear takes with it. */
+export type ClearScope = "voted" | "all"
+
+export type ClearIssuesResult = IssueResult & {
+  /** How many rows actually went, so the toast can say something true. */
+  cleared?: number
+}
+
+/**
+ * Clears your issues in one go — either the ones that have been voted on, or
+ * the lot.
+ *
+ * An ordinary filtered delete rather than a security-definer routine: the
+ * `issues_delete_owner` policy already narrows this to issues you own, so a
+ * bulk delete can only ever reach your own rows. Issues you merely have a seat
+ * at match nothing and are silently left alone, which is the behaviour we
+ * want — and it is the same policy the single-row delete leans on, rather than
+ * a second, parallel rule that could drift from it.
+ *
+ * `owner_id` is in the filter as well, even though the policy makes it
+ * redundant. PostgREST refuses an unfiltered delete, so this needs SOME
+ * predicate, and "mine" is the honest one to write: it says in the query what
+ * the UI promises.
+ */
+export async function clearIssues(
+  scope: ClearScope
+): Promise<ClearIssuesResult> {
+  // A server action is a public endpoint, and the two scopes differ by an
+  // entire table. Anything unrecognised is refused rather than defaulted —
+  // defaulting the wrong way here deletes issues that were never asked for.
+  if (scope !== "voted" && scope !== "all") {
+    return { formError: "That isn't something we can clear." }
+  }
+
+  const supabase = await createClient()
+  const { data } = await supabase.auth.getClaims()
+  const userId = typeof data?.claims?.sub === "string" ? data.claims.sub : null
+
+  if (!userId) return { formError: "Sign in before clearing your issues." }
+
+  const mine = supabase.from("issues").delete().eq("owner_id", userId)
+
+  const { data: removed, error } = await (scope === "voted"
+    ? mine.eq("status", "closed")
+    : mine
+  ).select("id")
+
+  if (error) return { formError: describe(error) }
+
+  revalidateIssue()
+  return { cleared: removed?.length ?? 0 }
+}
+
 /**
  * Stores the order you just dragged your list into.
  *
