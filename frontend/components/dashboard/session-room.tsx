@@ -1,40 +1,94 @@
 "use client"
 
-import { useState } from "react"
-import { Timer, Users } from "lucide-react"
+import { startTransition, useOptimistic, useState } from "react"
+import { Lock, RotateCcw, Users } from "lucide-react"
 
+import { FormAlert } from "@/components/auth/form-alert"
+import { InviteLink } from "@/components/dashboard/invite-link"
+import { RoundTimer } from "@/components/dashboard/round-timer"
+import { Seat } from "@/components/dashboard/seat"
+import { Button } from "@/components/ui/button"
+import {
+  castVote,
+  closeRound,
+  reopenRound,
+  retractVote,
+} from "@/lib/games/actions"
+import type { RoomState } from "@/lib/games/model"
+import { useCoalescedRefresh } from "@/lib/rooms/use-coalesced-refresh"
+import { useRoomChannel } from "@/lib/rooms/use-room-channel"
 import { cn } from "@/lib/utils"
 
-type Player = {
-  initials: string
-  name: string
-  vote: string | null
-}
+/** The live estimation room for one game. */
+function SessionRoom({ room }: { room: RoomState }) {
+  const [error, setError] = useState<string | null>(null)
 
-/** The rest of the table. The signed-in user is added as the last seat. */
-const teammates: Player[] = [
-  { initials: "AK", name: "Ama Kyei", vote: "5" },
-  { initials: "DM", name: "Daniel Mensah", vote: "5" },
-  { initials: "SO", name: "Sena Osei", vote: "8" },
-  { initials: "RT", name: "Rita Tetteh", vote: "3" },
-  { initials: "JB", name: "Joel Baidoo", vote: "5" },
-]
+  // Realtime is a signal, not a source: every event just asks the server for
+  // the room again, so card values always come back through RLS.
+  const refresh = useCoalescedRefresh()
+  const online = useRoomChannel({
+    gameId: room.id,
+    userId: room.me?.userId ?? "",
+    onEvent: refresh,
+  })
 
-const deck = ["1", "2", "3", "5", "8", "13", "?"]
+  // The optimistic base is the server's value, so when a revalidation lands
+  // mid-transition React re-runs this on top of the fresh data rather than
+  // fighting it.
+  const [optimisticVote, setOptimisticVote] = useOptimistic(
+    room.me?.value ?? null
+  )
 
-/**
- * A full-page build of the estimation room from the hero mockup. The deck is
- * live — picking a card seats your vote at the table and recounts the room —
- * but the teammates are stand-ins until sessions are real.
- */
-function SessionRoom({ displayName, initials }: { displayName: string; initials: string }) {
-  const [myVote, setMyVote] = useState<string | null>(null)
+  const closed = room.status === "closed"
+  const deck = room.deck.values
+  const alone = room.seats.length === 1
 
-  const players: Player[] = [
-    ...teammates,
-    { initials, name: displayName, vote: myVote },
-  ]
-  const { consensus, outliers, voted } = tally(players)
+  function play(value: string | null) {
+    setError(null)
+
+    startTransition(async () => {
+      setOptimisticVote(value)
+
+      const result =
+        value === null
+          ? await retractVote(room.id, room.round)
+          : await castVote(room.id, room.round, value)
+
+      // State updates after an await are not automatically part of the
+      // transition, so they need their own.
+      if (result.formError) {
+        startTransition(() => setError(result.formError ?? null))
+      }
+    })
+  }
+
+  /**
+   * Fired by the countdown reaching zero. Any participant may close an expired
+   * round — at that point the clock is the authority, not a person, and it is a
+   * fact the database re-checks rather than a claim the client makes.
+   *
+   * Errors are swallowed on purpose. Every open tab's timer fires at roughly
+   * the same moment, so all but the first will find the round already closed;
+   * and a browser whose clock runs fast will be told it isn't expired yet.
+   * Both are expected and neither is worth a message — the round simply stays
+   * open until a clock the server agrees with catches up.
+   */
+  function closeOnExpiry() {
+    startTransition(async () => {
+      await closeRound(room.id)
+    })
+  }
+
+  function settle(action: () => Promise<{ formError?: string }>) {
+    setError(null)
+
+    startTransition(async () => {
+      const result = await action()
+      if (result.formError) {
+        startTransition(() => setError(result.formError ?? null))
+      }
+    })
+  }
 
   return (
     <section className="overflow-hidden rounded-3xl border border-border bg-card shadow-[0_45px_90px_-45px_rgba(20,33,61,0.5)]">
@@ -46,112 +100,111 @@ function SessionRoom({ displayName, initials }: { displayName: string; initials:
           <span className="size-2.5 rounded-full bg-white/25" />
         </div>
         <p className="min-w-0 truncate font-mono text-xs text-white/60">
-          poko.app/room/atlas-sprint-24
+          poko.app/room/{room.slug}
         </p>
-        <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-secondary/15 px-2.5 py-1 text-[0.6875rem] font-semibold tracking-wide text-secondary uppercase">
-          <span className="size-1.5 rounded-full bg-secondary" />
-          Live
-        </span>
+        {closed ? (
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[0.6875rem] font-semibold tracking-wide text-white/70 uppercase">
+            <Lock className="size-3" aria-hidden="true" />
+            Closed
+          </span>
+        ) : (
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-secondary/15 px-2.5 py-1 text-[0.6875rem] font-semibold tracking-wide text-secondary uppercase">
+            <span className="size-1.5 rounded-full bg-secondary" />
+            Live
+          </span>
+        )}
       </div>
 
       <div className="space-y-6 p-5 sm:p-8">
-        {/* Ticket under discussion */}
+        {/* What the room is voting on */}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="rounded-md bg-secondary/15 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
-                PK-2481
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-md bg-secondary/15 px-2 py-0.5 text-xs font-semibold text-primary">
+                {room.deck.name}
               </span>
               <span className="text-xs text-muted-foreground">
-                Sprint 24 · Refinement
+                {deck.length} cards
+                {room.round > 1 ? ` · round ${room.round}` : ""}
               </span>
             </div>
             <h2 className="mt-2 text-lg font-semibold text-primary sm:text-xl">
-              Add SSO for enterprise workspaces
+              {room.name}
             </h2>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 font-mono text-xs font-medium text-primary">
-              <Timer className="size-3.5 text-secondary" aria-hidden="true" />
-              01:12
-            </span>
+            {!closed && room.roundEndsAt && (
+              <RoundTimer deadline={room.roundEndsAt} onExpire={closeOnExpiry} />
+            )}
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-primary">
               <Users className="size-3.5 text-secondary" aria-hidden="true" />
-              {voted}/{players.length}
+              {room.votedCount}/{room.seats.length}
             </span>
           </div>
         </div>
 
+        {error && <FormAlert>{error}</FormAlert>}
+
         {/* The table */}
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {players.map((player, index) => {
-            const isYou = index === players.length - 1
-
-            return (
-              <li
-                key={player.initials}
-                className={cn(
-                  "flex min-w-0 flex-col items-center gap-2.5 rounded-2xl p-3 sm:p-4",
-                  isYou ? "bg-secondary/12 ring-1 ring-secondary/35" : "bg-surface"
-                )}
-              >
-                <div
-                  className={cn(
-                    "flex h-20 w-15 items-center justify-center rounded-xl text-2xl font-semibold tabular-nums",
-                    player.vote
-                      ? "bg-primary text-white"
-                      : "border-2 border-dashed border-border bg-card text-muted-foreground"
-                  )}
-                >
-                  {player.vote ?? (
-                    <span className="flex gap-0.5" aria-hidden="true">
-                      <span className="size-1.5 rounded-full bg-current" />
-                      <span className="size-1.5 rounded-full bg-current" />
-                      <span className="size-1.5 rounded-full bg-current" />
-                    </span>
-                  )}
-                </div>
-
-                <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.625rem] font-bold text-primary">
-                    {player.initials}
-                  </span>
-                  <span className="truncate">
-                    {isYou ? "You" : player.name.split(" ")[0]}
-                  </span>
-                </span>
-
-                <span className="sr-only">
-                  {player.vote
-                    ? `${player.name} voted ${player.vote}`
-                    : `${player.name} is still voting`}
-                </span>
+        <div className="flex flex-col gap-5 rounded-2xl bg-surface p-4 sm:p-5">
+          <ul className="flex flex-wrap gap-3">
+            {room.seats.map((seat) => (
+              <li key={seat.userId}>
+                <Seat
+                  seat={seat}
+                  revealed={closed}
+                  online={online.has(seat.userId)}
+                  optimisticVote={seat.isMe ? optimisticVote : undefined}
+                />
               </li>
-            )
-          })}
-        </ul>
+            ))}
+          </ul>
 
-        {/* Your deck */}
+          {alone && !closed && (
+            <div className="border-t border-border pt-4">
+              <p className="text-sm font-medium text-primary">
+                You&apos;re the only one at the table
+              </p>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                Send this link to whoever should be estimating with you.
+              </p>
+              <div className="mt-2.5">
+                <InviteLink slug={room.slug} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Your hand */}
         <div>
           <p className="mb-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
             Your hand
           </p>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
             {deck.map((value) => {
-              const selected = value === myVote
+              const selected = value === optimisticVote
 
               return (
                 <button
                   key={value}
                   type="button"
+                  // Gated on the server's status, never on optimistic state: a
+                  // card in flight must not re-enable a closed hand.
+                  disabled={closed}
                   aria-pressed={selected}
-                  onClick={() => setMyVote(selected ? null : value)}
+                  onClick={() => play(selected ? null : value)}
                   className={cn(
-                    "flex h-16 items-center justify-center rounded-xl border text-base font-semibold tabular-nums transition-all outline-none focus-visible:ring-3 focus-visible:ring-secondary/50",
+                    "flex h-16 items-center justify-center rounded-xl border px-1 text-center text-base font-semibold tabular-nums transition-all outline-none focus-visible:ring-3 focus-visible:ring-secondary/50",
                     selected
-                      ? "-translate-y-1 border-secondary bg-secondary text-primary"
-                      : "border-border bg-card text-primary hover:-translate-y-0.5 hover:border-secondary/50"
+                      ? "border-secondary bg-secondary text-primary"
+                      : "border-border bg-card text-primary",
+                    closed
+                      ? "cursor-not-allowed opacity-50"
+                      : cn(
+                          "hover:-translate-y-0.5 hover:border-secondary/50",
+                          selected && "-translate-y-1"
+                        )
                   )}
                 >
                   {value}
@@ -161,38 +214,48 @@ function SessionRoom({ displayName, initials }: { displayName: string; initials:
           </div>
         </div>
 
-        {/* Outcome */}
+        {/* Settling the round */}
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface px-4 py-4">
-          <div>
-            <p className="text-xs text-muted-foreground">Team consensus</p>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">
+              {closed ? "Saved estimate" : "This round"}
+            </p>
             <p className="text-sm font-semibold text-primary">
-              {consensus === null
-                ? "Waiting on the first card"
-                : `${consensus} points · ${outliers} ${outliers === 1 ? "outlier" : "outliers"} to discuss`}
+              {closed
+                ? (room.estimate ?? "No consensus — talk it over and re-vote")
+                : optimisticVote
+                  ? "Ready when the table is"
+                  : "Pick a card to get started"}
             </p>
           </div>
-          <span className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-white">
-            Save estimate
-          </span>
+
+          {room.isOwner &&
+            (closed ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={() => settle(() => reopenRound(room.id))}
+              >
+                <RotateCcw className="size-4" aria-hidden="true" />
+                Reopen voting
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="default"
+                size="lg"
+                disabled={room.votedCount === 0}
+                onClick={() => settle(() => closeRound(room.id))}
+              >
+                <Lock className="size-4" aria-hidden="true" />
+                Close voting now
+              </Button>
+            ))}
         </div>
       </div>
     </section>
   )
-}
-
-/** Most-voted value across the table, and how many cards disagree with it. */
-function tally(players: Player[]) {
-  const votes = players.map((player) => player.vote).filter((vote) => vote !== null)
-  if (votes.length === 0) return { consensus: null, outliers: 0, voted: 0 }
-
-  const counts = new Map<string, number>()
-  votes.forEach((vote) => counts.set(vote, (counts.get(vote) ?? 0) + 1))
-
-  const [consensus, agreed] = [...counts.entries()].reduce((best, entry) =>
-    entry[1] > best[1] ? entry : best
-  )
-
-  return { consensus, outliers: votes.length - agreed, voted: votes.length }
 }
 
 export { SessionRoom }

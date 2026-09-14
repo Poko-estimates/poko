@@ -173,7 +173,13 @@ refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
 enable_signup = true
 # Allow/disallow anonymous sign-ins to your project.
-enable_anonymous_sign_ins = false
+# Invited teammates join a room as guests: they get a real JWT, so RLS and
+# Realtime authorization work identically for them and for account holders.
+# NOTE: this governs the LOCAL stack only. The hosted project needs the
+# dashboard toggle (Authentication -> Sign In / Providers). Do not run
+# `supabase config push` to sync it — that pushes this whole file, and
+# site_url below is localhost, which would break every hosted email link.
+enable_anonymous_sign_ins = true
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
@@ -198,7 +204,10 @@ email_sent = 2
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
-anonymous_users = 30
+# Raised from the default 30: a whole team shares one office IP, and every
+# fresh browser profile, incognito window or second device mints a new guest.
+# A rate limit is not an abuse defence — [auth.captcha] is, before launch.
+anonymous_users = 150
 # Number of sessions that can be refreshed in a 5 minute interval per IP address.
 token_refresh = 150
 # Number of sign up and sign-in requests that can be made in a 5 minute interval per IP address (excludes anonymous users).
