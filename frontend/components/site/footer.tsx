@@ -4,11 +4,13 @@ import { Container } from "@/components/site/container"
 import { Logo } from "@/components/site/logo"
 
 const productLinks = [
-  { label: "Features", href: "#features" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "How it works", href: "#how-it-works" },
+  { label: "Features", href: "/#features" },
+  { label: "Pricing", href: "/#pricing" },
+  { label: "How it works", href: "/#how-it-works" },
   { label: "Integrations", href: "/integrations" },
   { label: "Changelog", href: "/changelog" },
+  { label: "About", href: "/about" },
+  { label: "Contact", href: "/contact" },
 ]
 
 const legalLinks = [
