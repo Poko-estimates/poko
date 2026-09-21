@@ -23,7 +23,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(96);
+select plan(104);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -1030,6 +1030,73 @@ select is(
   private.can_use_issue_topic('game:' || :'issue_id'),
   false,
   'the old game: topic prefix no longer authorises anything'
+);
+
+-- ---------------------------------------------------------------------------
+-- The contact form's inbox is write-only
+--
+-- It is the one table on the internet's side of the fence: `anon` can write to
+-- it. Every assertion here is about the other half of that bargain — that
+-- nobody with a session can read, change or remove what strangers sent.
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+
+select lives_ok(
+  $$ insert into public.contact_messages (name, email, message, privacy_accepted)
+     values ('Ama Owner', 'ama@example.com', 'The timer is great.', true) $$,
+  'a signed-in visitor can send a message'
+);
+
+-- The consent is a column, not a promise the form makes. A message without it
+-- cannot be stored however the request arrived.
+select throws_ok(
+  $$ insert into public.contact_messages (name, email, message, privacy_accepted)
+     values ('Sneaky', 'sneaky@example.com', 'No consent here.', false) $$,
+  23514, null,
+  'a message cannot be stored without the privacy box ticked'
+);
+
+select throws_ok(
+  $$ insert into public.contact_messages (email, message, privacy_accepted)
+     values ('not-an-address', 'Hello.', true) $$,
+  23514, null,
+  'a value that could not be an email address is rejected'
+);
+
+-- THE point of the table. There is no SELECT policy and no SELECT grant, so
+-- reading it fails on the missing privilege before RLS is even consulted.
+select throws_ok(
+  $$ select 1 from public.contact_messages $$,
+  42501, null,
+  'nobody with a session can read the inbox — not even their own message'
+);
+
+select throws_ok(
+  $$ update public.contact_messages set message = 'edited' $$,
+  42501, null,
+  'and nobody can edit what was sent'
+);
+
+select throws_ok(
+  $$ delete from public.contact_messages $$,
+  42501, null,
+  'nor delete it'
+);
+
+-- user_id is in no grant, so a sender cannot pin their message on someone
+-- else. It comes from auth.uid() or it is null.
+select throws_ok(
+  format($$ insert into public.contact_messages (email, message, privacy_accepted, user_id)
+            values ('x@example.com', 'Pinned on you.', true, %L) $$, :'player_id'),
+  42501, null,
+  'a sender cannot attribute their message to another account'
+);
+
+select pg_temp.act_as_postgres();
+select is(
+  (select user_id from public.contact_messages where email = 'ama@example.com'),
+  :'owner_id'::uuid,
+  'a signed-in sender is recorded from auth.uid(), not from the payload'
 );
 
 select * from finish();
