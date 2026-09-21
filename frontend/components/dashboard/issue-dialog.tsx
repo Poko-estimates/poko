@@ -18,18 +18,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { EmojiInput } from "@/components/ui/emoji-input"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/toast"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import {
   deckPresets,
   maxDeckValues,
+  maxKeyLength,
   maxSummaryLength,
   minDeckValues,
   parseDeckValues,
 } from "@/lib/decks"
+import { SprintField } from "@/components/dashboard/sprint-field"
 import { createIssue, updateIssue } from "@/lib/issues/actions"
-import type { Issue } from "@/lib/issues/model"
+import type { Issue, Sprint } from "@/lib/issues/model"
 import { cn } from "@/lib/utils"
 
 const customDeckId = "custom"
@@ -53,6 +56,8 @@ type IssueDialogProps = {
    * difference between the two modes, besides which action runs.
    */
   issue?: Issue
+  /** The sprints this person owns, for the sprint field to offer. */
+  sprints: Sprint[]
   /** Called with the new issue's slug, on creation only. */
   onCreated?: (slug: string) => void
 }
@@ -102,12 +107,14 @@ function IssueDialog({
   open,
   onCreated,
   onOpenChange,
+  sprints,
 }: IssueDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <IssueForm
           issue={issue}
+          sprints={sprints}
           onClose={() => onOpenChange(false)}
           onCreated={onCreated}
         />
@@ -120,10 +127,12 @@ function IssueForm({
   issue,
   onClose,
   onCreated,
+  sprints,
 }: {
   issue?: Issue
   onClose: () => void
   onCreated?: (slug: string) => void
+  sprints: Sprint[]
 }) {
   const editing = issue !== undefined
   const deckLabelId = useId()
@@ -135,6 +144,8 @@ function IssueForm({
   // you — a missing name, too few cards — so the message belongs beside them.
   const [formError, setFormError] = useState<string | null>(null)
   const [name, setName] = useState(issue?.name ?? "")
+  const [key, setKey] = useState(issue?.key ?? "")
+  const [sprintName, setSprintName] = useState(issue?.sprint?.name ?? "")
   const [summary, setSummary] = useState(issue?.summary ?? "")
   const [deckId, setDeckId] = useState<string>(() => deckIdFor(issue))
   const [timeboxId, setTimeboxId] = useState<string>(() => timeboxIdFor(issue))
@@ -156,6 +167,8 @@ function IssueForm({
 
     const draft = {
       name: name.trim(),
+      key: key.trim() || null,
+      sprintName: sprintName.trim() || null,
       summary: summary.trim() || null,
       deck: preset
         ? { name: preset.name, values: preset.values }
@@ -204,27 +217,67 @@ function IssueForm({
         <DialogTitle>{editing ? "Edit issue" : "Create an issue"}</DialogTitle>
         <DialogDescription>
           {editing
-            ? "Change the name, summary, deck or timebox."
-            : "Name the round and choose the cards your team will vote with."}
+            ? "Change the key, title, sprint, summary, deck or timebox."
+            : "Name what you're estimating and choose the cards your team will vote with."}
         </DialogDescription>
       </DialogHeader>
 
       <DialogBody className="flex flex-col gap-6">
         {formError && <FormAlert>{formError}</FormAlert>}
 
-        <Field name="issueName">
-          <FieldLabel>Issue name</FieldLabel>
-          <EmojiInput
-            value={name}
-            onValueChange={setName}
-            placeholder="Sprint 24 refinement"
-            emojiLabel="Add an emoji to the issue name"
-            autoComplete="off"
-            required
+        {/* The key and the title on one row: together they are how the team
+            refers to the ticket, and the key is short enough that giving it a
+            full-width field would only look like a mistake. */}
+        <div className="flex flex-col gap-4 sm:flex-row">
+          <Field name="issueKey" className="sm:w-40 sm:shrink-0">
+            <FieldLabel>
+              Key{" "}
+              <span className="font-normal text-muted-foreground">
+                (optional)
+              </span>
+            </FieldLabel>
+            <Input
+              value={key}
+              onValueChange={setKey}
+              placeholder="PK-231"
+              autoComplete="off"
+              maxLength={maxKeyLength}
+            />
+            <FieldDescription>From your tracker.</FieldDescription>
+          </Field>
+
+          <Field name="issueName" className="min-w-0 flex-1">
+            <FieldLabel>Title</FieldLabel>
+            <EmojiInput
+              value={name}
+              onValueChange={setName}
+              placeholder="Add SSO for enterprise workspaces"
+              emojiLabel="Add an emoji to the issue title"
+              autoComplete="off"
+              required
+            />
+            <FieldError match="valueMissing">
+              Give the issue a title your team will recognise.
+            </FieldError>
+          </Field>
+        </div>
+
+        {/* Optional. An issue with no sprint groups under "Uncategorized"
+            rather than being refused, so a quick one-off estimate does not
+            have to become a planning exercise first. */}
+        <Field name="sprint">
+          <FieldLabel>
+            Sprint{" "}
+            <span className="font-normal text-muted-foreground">(optional)</span>
+          </FieldLabel>
+          <SprintField
+            sprints={sprints}
+            value={sprintName}
+            onValueChange={setSprintName}
           />
-          <FieldError match="valueMissing">
-            Give the issue a name your team will recognise.
-          </FieldError>
+          <FieldDescription>
+            Pick one of yours, or type a new name to add it.
+          </FieldDescription>
         </Field>
 
         {/* Optional, and next to the name because it answers the same

@@ -7,7 +7,7 @@ import { Plus, Spade } from "lucide-react"
 import { IssueDialog } from "@/components/dashboard/issue-dialog"
 import { IssuesPanel } from "@/components/dashboard/issues-panel"
 import { Button } from "@/components/ui/button"
-import type { Issue } from "@/lib/issues/model"
+import type { Issue, Sprint } from "@/lib/issues/model"
 
 /**
  * Layout and dialog state only. The issues list and the room itself are read on
@@ -18,10 +18,12 @@ function DashboardShell({
   activeSlug,
   children,
   issues,
+  sprints,
 }: {
   activeSlug: string | null
   children: ReactNode
   issues: Issue[]
+  sprints: Sprint[]
 }) {
   const router = useRouter()
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -61,12 +63,14 @@ function DashboardShell({
 
         <IssuesPanel
           issues={issues}
+          sprints={sprints}
           activeSlug={activeSlug}
           onCreate={() => setDialogOpen(true)}
         />
       </div>
 
       <IssueDialog
+        sprints={sprints}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onCreated={(slug) => {

@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Pencil } from "lucide-react"
 
 import { IssueDialog } from "@/components/dashboard/issue-dialog"
-import type { Issue } from "@/lib/issues/model"
+import type { Issue, Sprint } from "@/lib/issues/model"
 import { cn } from "@/lib/utils"
 
 /**
@@ -14,7 +14,13 @@ import { cn } from "@/lib/utils"
  * the issue fresh every time it opens, so a name changed by realtime in the
  * meantime shows up rather than being stale.
  */
-function EditIssueButton({ issue }: { issue: Issue }) {
+function EditIssueButton({
+  issue,
+  sprints,
+}: {
+  issue: Issue
+  sprints: Sprint[]
+}) {
   const [open, setOpen] = useState(false)
 
   // A closed round is a record of what the team decided. Reopening is the way
@@ -46,7 +52,12 @@ function EditIssueButton({ issue }: { issue: Issue }) {
       </button>
 
       {!locked && (
-        <IssueDialog issue={issue} open={open} onOpenChange={setOpen} />
+        <IssueDialog
+          issue={issue}
+          sprints={sprints}
+          open={open}
+          onOpenChange={setOpen}
+        />
       )}
     </>
   )

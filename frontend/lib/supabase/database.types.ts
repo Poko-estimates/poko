@@ -84,6 +84,7 @@ export type Database = {
           deck_values: string[]
           estimate: string | null
           id: string
+          key: string | null
           name: string
           owner_id: string
           round: number
@@ -91,6 +92,7 @@ export type Database = {
           round_ends_at: string | null
           round_started_at: string
           slug: string
+          sprint_id: string | null
           status: string
           summary: string | null
           updated_at: string
@@ -105,6 +107,7 @@ export type Database = {
           deck_values: string[]
           estimate?: string | null
           id?: string
+          key?: string | null
           name: string
           owner_id?: string
           round?: number
@@ -112,6 +115,7 @@ export type Database = {
           round_ends_at?: string | null
           round_started_at?: string
           slug?: string
+          sprint_id?: string | null
           status?: string
           summary?: string | null
           updated_at?: string
@@ -126,6 +130,7 @@ export type Database = {
           deck_values?: string[]
           estimate?: string | null
           id?: string
+          key?: string | null
           name?: string
           owner_id?: string
           round?: number
@@ -133,11 +138,20 @@ export type Database = {
           round_ends_at?: string | null
           round_started_at?: string
           slug?: string
+          sprint_id?: string | null
           status?: string
           summary?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "issues_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -154,6 +168,30 @@ export type Database = {
           created_at?: string
           id?: string
           tier?: string
+        }
+        Relationships: []
+      }
+      sprints: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -209,6 +247,7 @@ export type Database = {
           deck_values: string[]
           estimate: string | null
           id: string
+          key: string | null
           name: string
           owner_id: string
           round: number
@@ -216,6 +255,7 @@ export type Database = {
           round_ends_at: string | null
           round_started_at: string
           slug: string
+          sprint_id: string | null
           status: string
           summary: string | null
           updated_at: string
@@ -241,6 +281,7 @@ export type Database = {
           deck_values: string[]
           estimate: string | null
           id: string
+          key: string | null
           name: string
           owner_id: string
           round: number
@@ -248,6 +289,7 @@ export type Database = {
           round_ends_at: string | null
           round_started_at: string
           slug: string
+          sprint_id: string | null
           status: string
           summary: string | null
           updated_at: string
@@ -272,6 +314,7 @@ export type Database = {
           deck_values: string[]
           estimate: string | null
           id: string
+          key: string | null
           name: string
           owner_id: string
           round: number
@@ -279,6 +322,7 @@ export type Database = {
           round_ends_at: string | null
           round_started_at: string
           slug: string
+          sprint_id: string | null
           status: string
           summary: string | null
           updated_at: string
@@ -303,6 +347,7 @@ export type Database = {
           deck_values: string[]
           estimate: string | null
           id: string
+          key: string | null
           name: string
           owner_id: string
           round: number
@@ -310,6 +355,7 @@ export type Database = {
           round_ends_at: string | null
           round_started_at: string
           slug: string
+          sprint_id: string | null
           status: string
           summary: string | null
           updated_at: string
@@ -333,6 +379,7 @@ export type Database = {
           deck_values: string[]
           estimate: string | null
           id: string
+          key: string | null
           name: string
           owner_id: string
           round: number
@@ -340,6 +387,7 @@ export type Database = {
           round_ends_at: string | null
           round_started_at: string
           slug: string
+          sprint_id: string | null
           status: string
           summary: string | null
           updated_at: string

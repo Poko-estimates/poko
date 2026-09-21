@@ -3,7 +3,13 @@
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
-import { maxDeckValues, maxSummaryLength, minDeckValues } from "@/lib/decks"
+import {
+  maxDeckValues,
+  maxKeyLength,
+  maxSprintNameLength,
+  maxSummaryLength,
+  minDeckValues,
+} from "@/lib/decks"
 import type { IssueDraft } from "@/lib/issues/model"
 import { createClient } from "@/lib/supabase/server"
 
@@ -26,8 +32,11 @@ export async function createIssue(
   const fields = validateDraft(draft)
   if (!fields.ok) return { formError: fields.formError }
 
-  const { deckName, name, summary, values } = fields
+  const { deckName, key, name, sprintName, summary, values } = fields
   const supabase = await createClient()
+
+  const sprint = await resolveSprint(supabase, sprintName)
+  if (!sprint.ok) return { formError: sprint.formError }
 
   // owner_id and slug are absent on purpose: the database supplies both, and
   // the client holds no grant on either column.
@@ -35,6 +44,8 @@ export async function createIssue(
     .from("issues")
     .insert({
       name,
+      key,
+      sprint_id: sprint.sprintId,
       summary,
       deck_name: deckName,
       deck_values: values,
@@ -47,6 +58,89 @@ export async function createIssue(
 
   revalidatePath("/dashboard")
   return { slug: data.slug }
+}
+
+/**
+ * Turns the sprint field's text into a sprint id, creating the sprint if this
+ * is the first time that name has been used.
+ *
+ * The form can only report a NAME — its combobox offers to add whatever you
+ * typed — so the find-or-create lives here, next to the unique index that
+ * makes it safe.
+ *
+ * Look first, then insert, then look again. That last step is not belt and
+ * braces: two issues submitted for a brand-new sprint at once both miss the
+ * lookup, and the one that loses the race gets 23505 rather than a row. The
+ * re-read turns that into the sprint the winner just made, which is exactly
+ * what the loser wanted — the same insert-then-fall-back shape as `castVote`.
+ */
+async function resolveSprint(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  name: string | null
+): Promise<
+  { ok: true; sprintId: string | null } | { ok: false; formError: string }
+> {
+  if (name === null) return { ok: true, sprintId: null }
+
+  const existing = await findSprint(supabase, name)
+  if (!existing.ok) return existing
+  if (existing.sprintId) return existing
+
+  // owner_id is absent on purpose: it defaults to auth.uid() and the client
+  // holds no grant on it, so nobody can create a sprint under someone else.
+  const { data, error } = await supabase
+    .from("sprints")
+    .insert({ name })
+    .select("id")
+    .single()
+
+  if (!error) return { ok: true, sprintId: data.id }
+
+  // 23505 is the (owner_id, lower(name)) index: it already exists, either
+  // because we lost a race or because the name differs only by case.
+  if (error.code !== "23505") return { ok: false, formError: describe(error) }
+
+  const raced = await findSprint(supabase, name)
+  if (!raced.ok) return raced
+  if (raced.sprintId) return raced
+
+  return { ok: false, formError: "Couldn't file that under a sprint. Try again." }
+}
+
+/**
+ * The caller's sprint with this name, matched the way the unique index does —
+ * ignoring case.
+ *
+ * Matched in TypeScript over the caller's own sprints rather than with an
+ * `ilike` filter, because `ilike` would read `%` and `_` in a sprint name as
+ * wildcards: a sprint called "Q3 (80% capacity)" would match things it isn't.
+ * RLS plus the owner filter keeps the list to one person's own sprints, so
+ * there is very little to scan.
+ */
+async function findSprint(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  name: string
+): Promise<
+  { ok: true; sprintId: string | null } | { ok: false; formError: string }
+> {
+  const { data } = await supabase.auth.getClaims()
+  const userId = typeof data?.claims?.sub === "string" ? data.claims.sub : null
+
+  if (!userId) {
+    return { ok: false, formError: "Sign in before creating an issue." }
+  }
+
+  const { data: sprints, error } = await supabase
+    .from("sprints")
+    .select("id, name")
+    .eq("owner_id", userId)
+
+  if (error) return { ok: false, formError: describe(error) }
+
+  const wanted = name.toLowerCase()
+  const match = sprints.find((sprint) => sprint.name.toLowerCase() === wanted)
+
+  return { ok: true, sprintId: match?.id ?? null }
 }
 
 /**
@@ -143,10 +237,15 @@ export async function updateIssue(
 
   const supabase = await createClient()
 
+  const sprint = await resolveSprint(supabase, fields.sprintName)
+  if (!sprint.ok) return { formError: sprint.formError }
+
   const { data, error } = await supabase
     .from("issues")
     .update({
       name: fields.name,
+      key: fields.key,
+      sprint_id: sprint.sprintId,
       summary: fields.summary,
       deck_name: fields.deckName,
       deck_values: fields.values,
@@ -399,6 +498,8 @@ function revalidateIssue() {
 type ValidDraft = {
   ok: true
   name: string
+  key: string | null
+  sprintName: string | null
   deckName: string
   values: string[]
   summary: string | null
@@ -408,7 +509,26 @@ function validateDraft(
   draft: IssueDraft
 ): ValidDraft | { ok: false; formError: string } {
   const name = draft.name.trim()
-  if (!name) return { ok: false, formError: "Give the issue a name." }
+  if (!name) return { ok: false, formError: "Give the issue a title." }
+
+  // Blank and whitespace-only both mean "no key", and the column's CHECK
+  // rejects an empty string, so normalise before it gets there. Same for the
+  // sprint, where blank is how you say "uncategorised".
+  const key = draft.key?.trim() || null
+  if (key && key.length > maxKeyLength) {
+    return {
+      ok: false,
+      formError: `Keep the issue key under ${maxKeyLength} characters.`,
+    }
+  }
+
+  const sprintName = draft.sprintName?.trim() || null
+  if (sprintName && sprintName.length > maxSprintNameLength) {
+    return {
+      ok: false,
+      formError: `Keep the sprint name under ${maxSprintNameLength} characters.`,
+    }
+  }
 
   const deckName = draft.deck.name.trim()
   if (!deckName) return { ok: false, formError: "Give the deck a name." }
@@ -434,7 +554,7 @@ function validateDraft(
     }
   }
 
-  return { ok: true, name, deckName, values, summary }
+  return { ok: true, name, key, sprintName, deckName, values, summary }
 }
 
 /** Trim, drop blanks, drop repeats — mirrors the deck CHECK on `issues`. */
@@ -481,6 +601,8 @@ function describe(error: { code?: string; hint?: string | null; message: string 
       return "That invite link doesn't match an issue."
     case "poko_not_signed_in":
       return "Sign in before joining an issue."
+    case "poko_sprint_not_yours":
+      return "That sprint isn't yours to file an issue in."
     case "poko_order_missing":
     case "poko_order_too_long":
       return "Couldn't save that order. Reload and try again."

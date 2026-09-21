@@ -8,7 +8,7 @@ import { AppHeader } from "@/components/site/app-header"
 import { UserMenu } from "@/components/site/user-menu"
 import { Container } from "@/components/site/container"
 import { initialsFor } from "@/lib/account/model"
-import { getRoomState, listIssues } from "@/lib/issues/queries"
+import { getRoomState, listIssues, listSprints } from "@/lib/issues/queries"
 import { createClient } from "@/lib/supabase/server"
 
 export const metadata: Metadata = {
@@ -29,7 +29,10 @@ export default async function Page({ searchParams }: PageProps<"/dashboard">) {
 
   const fullName = readFullName(claims) || email.split("@")[0]
 
-  const issues = await listIssues(userId)
+  const [issues, sprints] = await Promise.all([
+    listIssues(userId),
+    listSprints(userId),
+  ])
   const requested = typeof issue === "string" ? issue : null
   const activeSlug =
     (requested && issues.some((row) => row.slug === requested)
@@ -64,7 +67,11 @@ export default async function Page({ searchParams }: PageProps<"/dashboard">) {
             </p>
           </div>
 
-          <DashboardShell issues={issues} activeSlug={activeSlug}>
+          <DashboardShell
+            issues={issues}
+            sprints={sprints}
+            activeSlug={activeSlug}
+          >
             {room && <SessionRoom room={room} />}
           </DashboardShell>
         </Container>

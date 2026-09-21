@@ -10,11 +10,26 @@ type Deck = {
 const issueStatuses = ["voting", "closed"] as const
 type IssueStatus = (typeof issueStatuses)[number]
 
+/**
+ * The sprint an issue is being refined in, or null when it has none.
+ *
+ * Optional throughout: the dialog's sprint field can be left empty, and the
+ * sidebar groups anything without one under "Uncategorized" rather than
+ * insisting every issue belong somewhere.
+ */
+type Sprint = {
+  id: string
+  name: string
+}
+
 /** An issue, as both the sidebar and the room need it. */
 type Issue = {
   id: string
   slug: string
   name: string
+  /** The tracker's identifier, e.g. "PK-231". Optional — not every team has one. */
+  key: string | null
+  sprint: Sprint | null
   deckName: string
   status: IssueStatus
   estimate: string | null
@@ -31,6 +46,17 @@ type Issue = {
 
 type IssueDraft = {
   name: string
+  /** Optional. Blank is normalised to null rather than stored as "". */
+  key: string | null
+  /**
+   * The sprint by NAME, not by id.
+   *
+   * The dialog's sprint field creates on demand — type something that isn't in
+   * the list and it becomes a sprint — so a name is the only thing the form
+   * can honestly report. Resolving it to a row (finding the existing one, or
+   * inserting it) belongs on the server, where the uniqueness constraint is.
+   */
+  sprintName: string | null
   deck: Deck
   /** Optional. Blank is normalised to null rather than stored as "". */
   summary: string | null
@@ -78,11 +104,23 @@ function toIssueStatus(value: string): IssueStatus {
   throw new Error(`Unknown issue status from the database: ${value}`)
 }
 
-function toIssue(row: IssueRow, userId: string): Issue {
+/**
+ * The shape a row arrives in when the query embeds its sprint. PostgREST
+ * returns an embedded to-one relation as an object or null, and null covers
+ * both "no sprint" and "a sprint you cannot read" — which are the same thing
+ * as far as rendering goes.
+ */
+type IssueRowWithSprint = IssueRow & {
+  sprints?: Sprint | null
+}
+
+function toIssue(row: IssueRowWithSprint, userId: string): Issue {
   return {
     id: row.id,
     slug: row.slug,
     name: row.name,
+    key: row.key,
+    sprint: row.sprints ?? null,
     deckName: row.deck_name,
     status: toIssueStatus(row.status),
     estimate: row.estimate,
@@ -111,7 +149,9 @@ export type {
   Issue,
   IssueDraft,
   IssueRow,
+  IssueRowWithSprint,
   IssueStatus,
   RoomState,
   Seat,
+  Sprint,
 }

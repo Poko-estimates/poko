@@ -20,12 +20,6 @@ const deckPresets: DeckPreset[] = [
     values: ["0", "1", "2", "3", "5", "8", "13", "21", "?", "☕"],
   },
   {
-    id: "t-shirt",
-    name: "T-shirt sizes",
-    tagline: "Relative sizing without the false precision of numbers.",
-    values: ["XS", "S", "M", "L", "XL", "XXL", "?", "☕"],
-  },
-  {
     id: "powers-of-two",
     name: "Powers of two",
     tagline: "Doubling steps, for teams that think in orders of magnitude.",
@@ -41,6 +35,12 @@ const minDeckValues = 2
 
 /** Mirrors the `issues_summary_length` CHECK on the issues table. */
 const maxSummaryLength = 500
+
+/** Mirrors the `issues_key_length` CHECK. Room for "PLATFORM-12345", not prose. */
+const maxKeyLength = 32
+
+/** Mirrors the `sprints_name_length` CHECK. */
+const maxSprintNameLength = 80
 
 /**
  * Splits the custom-deck input into card faces. Commas and newlines both
@@ -71,6 +71,8 @@ function slugify(name: string): string {
 export {
   deckPresets,
   maxDeckValues,
+  maxKeyLength,
+  maxSprintNameLength,
   maxSummaryLength,
   minDeckValues,
   parseDeckValues,

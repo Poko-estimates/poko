@@ -4,6 +4,7 @@ import {
   type Issue,
   type RoomState,
   type Seat,
+  type Sprint,
 } from "@/lib/issues/model"
 import { createClient } from "@/lib/supabase/server"
 
@@ -36,7 +37,14 @@ async function listIssues(userId: string): Promise<Issue[]> {
     { data: rows, error },
     { data: ranks, error: rankError },
   ] = await Promise.all([
-    supabase.from("issues").select("*").order("created_at", { ascending: false }),
+    // The sprint is embedded rather than fetched separately: it is a to-one
+    // relation the sidebar needs for every row, and its own SELECT policy
+    // still applies — so a sprint you may not read comes back null, which
+    // renders the same as having none.
+    supabase
+      .from("issues")
+      .select("*, sprints(id, name)")
+      .order("created_at", { ascending: false }),
     supabase.from("issue_order").select("issue_id, sort_order"),
   ])
 
@@ -69,6 +77,28 @@ async function listIssues(userId: string): Promise<Issue[]> {
 }
 
 /**
+ * The sprints this person can file an issue into — their own, newest first.
+ *
+ * Deliberately not every sprint they can SEE. The select policy also exposes
+ * sprints behind an issue they merely have a seat at, but a trigger refuses to
+ * file an issue into a sprint its owner does not own, so offering those in the
+ * dialog would be offering a choice the database rejects.
+ */
+async function listSprints(userId: string): Promise<Sprint[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("sprints")
+    .select("id, name")
+    .eq("owner_id", userId)
+    .order("created_at", { ascending: false })
+
+  if (error) throw new Error(`Could not load your sprints: ${error.message}`)
+
+  return data
+}
+
+/**
  * One issue plus its table, or null when the slug is unknown or not yours.
  *
  * Three queries rather than one embedded select: `votes` has no direct foreign
@@ -89,7 +119,7 @@ async function getRoomState(
 
   const { data: issue, error: issueError } = await supabase
     .from("issues")
-    .select("*")
+    .select("*, sprints(id, name)")
     .eq("slug", slug)
     .maybeSingle()
 
@@ -137,4 +167,4 @@ async function getRoomState(
   }
 }
 
-export { getRoomState, listIssues }
+export { getRoomState, listIssues, listSprints }

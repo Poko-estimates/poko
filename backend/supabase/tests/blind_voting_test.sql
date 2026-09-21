@@ -23,7 +23,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(68);
+select plan(81);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -639,6 +639,138 @@ select is(
   (select count(*)::int from public.issue_order),
   2,
   'a participant reordering their own list leaves the owner''s order alone'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Sprints group issues, and a sprint belongs to one person
+--
+-- The sprint field creates on demand, so the interesting failures are about
+-- what a client can name: somebody else's sprint id, or the same sprint name
+-- twice.
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+
+-- WITH RETURNING, on purpose. A SELECT policy also gates an INSERT's
+-- RETURNING clause, so this is the shape every PostgREST insert takes — and
+-- the shape a plain `insert ... values` does NOT exercise. Behind a STABLE
+-- security-definer helper with no inline owner check, the function reads the
+-- pre-statement snapshot, cannot see the row being inserted, and this fails
+-- with 42501 while the bare insert below it passes happily.
+select lives_ok(
+  $$ insert into public.sprints (name) values ('Sprint 24') returning id $$,
+  'creating a sprint can read its own row back (RETURNING sees the new row)'
+);
+
+select id as sprint_id from public.sprints where name = 'Sprint 24' \gset
+
+select is(
+  (select owner_id from public.sprints where id = :'sprint_id'::uuid),
+  :'owner_id'::uuid,
+  'a sprint is owned by whoever created it, from auth.uid()'
+);
+
+-- Create-on-demand has to be able to trust that a name maps to one row, or
+-- "Sprint 24" typed twice would quietly fork into two groups in the sidebar.
+select throws_ok(
+  $$ insert into public.sprints (name) values ('sprint 24') $$,
+  23505, null,
+  'the same sprint name, in any case, cannot exist twice for one owner'
+);
+
+-- Another owner using the same name is none of their business.
+select pg_temp.act_as(:'player_id');
+select lives_ok(
+  $$ insert into public.sprints (name) values ('Sprint 24') $$,
+  'two different people may each have a sprint of the same name'
+);
+
+select id as other_sprint_id
+  from public.sprints where owner_id = :'player_id'::uuid \gset
+
+-- Sprints are private to their owner until an issue in them is shared.
+select is(
+  (select count(*)::int from public.sprints),
+  1,
+  'you see only your own sprints, not everybody''s'
+);
+
+select pg_temp.act_as(:'owner_id');
+
+select lives_ok(
+  format($$ insert into public.issues (name, key, deck_name, deck_values, sprint_id)
+            values ('Add SSO', 'PK-231', 'Fibonacci', array['1','2','3'], %L) $$,
+         :'sprint_id'),
+  'an issue can be filed in your own sprint, with a tracker key'
+);
+
+select id as keyed_id, slug as keyed_slug
+  from public.issues where key = 'PK-231'
+\gset
+
+-- THE guard: naming someone else's sprint id would file your issue inside
+-- their board. RLS cannot express this — it checks who is writing, not where
+-- the sprint_id points.
+select throws_ok(
+  format($$ insert into public.issues (name, deck_name, deck_values, sprint_id)
+            values ('Sneaky', 'Fibonacci', array['1','2'], %L) $$,
+         :'other_sprint_id'),
+  42501, null,
+  'an issue cannot be filed in a sprint somebody else owns'
+);
+
+select throws_ok(
+  format($$ update public.issues set sprint_id = %L where id = %L $$,
+         :'other_sprint_id', :'keyed_id'),
+  42501, null,
+  'nor moved into one afterwards'
+);
+
+-- A seat at the issue is what makes its sprint readable, so the sidebar can
+-- put a heading above an issue you are only estimating.
+select pg_temp.act_as(:'player_id');
+select public.join_issue(:'keyed_slug', 'Kojo');
+
+select isnt_empty(
+  format($$ select 1 from public.sprints where id = %L $$, :'sprint_id'),
+  'a participant can read the sprint of an issue they are seated at'
+);
+
+-- Losing a sprint must cost a grouping, never an estimate.
+select pg_temp.act_as(:'owner_id');
+delete from public.sprints where id = :'sprint_id'::uuid;
+
+select pg_temp.act_as_postgres();
+select is(
+  (select sprint_id from public.issues where id = :'keyed_id'::uuid),
+  null,
+  'deleting a sprint unassigns its issues rather than deleting them'
+);
+
+select isnt_empty(
+  format($$ select 1 from public.issues where id = %L $$, :'keyed_id'),
+  'the issue itself survived its sprint being deleted'
+);
+
+-- The key names the ticket an estimate belongs to, so it freezes with the
+-- rest of the details. The sprint does not: filing a settled estimate under
+-- the right sprint is housekeeping, not a rewrite of the round.
+select pg_temp.act_as(:'owner_id');
+select public.close_round(:'keyed_id');
+
+select throws_ok(
+  format($$ update public.issues set key = 'PK-999' where id = %L $$, :'keyed_id'),
+  'P0001', null,
+  'a closed issue cannot have its tracker key changed'
+);
+
+insert into public.sprints (name) values ('Sprint 25');
+select id as later_sprint_id from public.sprints where name = 'Sprint 25' \gset
+
+select lives_ok(
+  format($$ update public.issues set sprint_id = %L where id = %L $$,
+         :'later_sprint_id', :'keyed_id'),
+  'a closed issue CAN still be moved between sprints'
 );
 
 
