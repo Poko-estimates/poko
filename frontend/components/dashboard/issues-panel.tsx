@@ -1,12 +1,14 @@
 "use client"
 
-import { startTransition, useOptimistic, useRef } from "react"
+import { startTransition, useOptimistic, useRef, useState } from "react"
 import Link from "next/link"
-import { CheckCircle2, GripVertical, Inbox, Layers, Plus } from "lucide-react"
+import { CheckCircle2, GripVertical, Inbox, Layers, Plus, Trash2 } from "lucide-react"
 
 import { ClearIssuesMenu } from "@/components/dashboard/clear-issues-menu"
 import { DeleteIssueDialog } from "@/components/dashboard/delete-issue-dialog"
+import { DeleteSprintDialog } from "@/components/dashboard/delete-sprint-dialog"
 import { EditIssueButton } from "@/components/dashboard/edit-issue-button"
+import { MoveIssueMenu } from "@/components/dashboard/move-issue-menu"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import { reorderIssues } from "@/lib/issues/actions"
@@ -20,6 +22,8 @@ const uncategorized = ""
 type Group = {
   id: string
   name: string
+  /** Null for Uncategorized, which is a rendering bucket rather than a row. */
+  sprint: Sprint | null
   issues: Issue[]
 }
 
@@ -32,8 +36,15 @@ type Group = {
  * than a second, invisible rule about sprints competing with it. Uncategorized
  * always sinks to the bottom: it is where things land when nobody has filed
  * them, not a sprint the team is working on.
+ *
+ * `owned` is why this takes a second argument. Cards built from issues alone
+ * would make a sprint disappear the moment its last issue moved out — still
+ * there, still offered in the dialog and the move menu, but with nowhere to
+ * delete it from. So every sprint of yours gets a card whether or not anything
+ * is in it, and the empty ones park between the active sprints and
+ * Uncategorized.
  */
-function groupBySprint(issues: Issue[]): Group[] {
+function groupBySprint(issues: Issue[], owned: Sprint[]): Group[] {
   const groups = new Map<string, Group>()
 
   for (const issue of issues) {
@@ -48,15 +59,23 @@ function groupBySprint(issues: Issue[]): Group[] {
     groups.set(id, {
       id,
       name: issue.sprint?.name ?? "Uncategorized",
+      sprint: issue.sprint ?? null,
       issues: [issue],
     })
   }
 
-  return [...groups.values()].sort((a, b) => {
-    if (a.id === uncategorized) return 1
-    if (b.id === uncategorized) return -1
-    return 0
-  })
+  for (const sprint of owned) {
+    if (groups.has(sprint.id)) continue
+    groups.set(sprint.id, { id: sprint.id, name: sprint.name, sprint, issues: [] })
+  }
+
+  return [...groups.values()].sort((a, b) => rankOf(a) - rankOf(b))
+}
+
+/** Active sprints keep their order, then the empty ones, then Uncategorized. */
+function rankOf(group: Group) {
+  if (group.id === uncategorized) return 2
+  return group.issues.length === 0 ? 1 : 0
 }
 
 /**
@@ -99,7 +118,8 @@ function IssuesPanel({
     ...issues.filter((issue) => !optimisticIds.includes(issue.id)),
   ]
 
-  const groups = groupBySprint(ordered)
+  const groups = groupBySprint(ordered, sprints)
+  const named = groups.filter((group) => group.sprint !== null).length
 
   /**
    * Folds one sprint's new internal order back into the whole list.
@@ -146,7 +166,7 @@ function IssuesPanel({
             <p className="mt-0.5 text-xs text-muted-foreground">
               {issues.length === 0
                 ? "Nothing on the table yet"
-                : `${issues.length} across ${countOf(groups.length, "sprint")} · ${open} still voting`}
+                : `${issues.length} across ${countOf(named, "sprint")} · ${open} still voting`}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -158,7 +178,7 @@ function IssuesPanel({
           </div>
         </div>
 
-        {issues.length === 0 ? (
+        {issues.length === 0 && sprints.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-xs leading-relaxed text-muted-foreground">
             Create an issue to open the table.
           </p>
@@ -182,8 +202,8 @@ function IssuesPanel({
                 className="px-1 text-xs leading-relaxed text-muted-foreground"
               >
                 Drag a card to reorder it within its sprint, or press space on
-                its handle and use the arrow keys. Use Edit to move an issue to
-                a different sprint.
+                its handle and use the arrow keys. To put an issue in a
+                different sprint, use its move button.
               </p>
             )}
           </>
@@ -215,7 +235,13 @@ function SprintGroup({
   sprints: Sprint[]
 }) {
   const listRef = useRef<HTMLUListElement>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const isUncategorized = group.id === uncategorized
+
+  // Only the sprint's owner may delete it, and only issues you own can be in
+  // your sprint — so "every issue here is mine" is the same question as "is
+  // this sprint mine", and there is no separate ownership flag to carry.
+  const deletable = group.sprint !== null && group.issues.every((i) => i.isOwner)
 
   const order = useDragOrder({
     ids: group.issues.map((issue) => issue.id),
@@ -251,7 +277,37 @@ function SprintGroup({
         <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
           {group.issues.length}
         </span>
+
+        {/* Uncategorized has no sprint row behind it, so there is nothing to
+            delete — the heading is a bucket for issues with no sprint. */}
+        {deletable && (
+          <button
+            type="button"
+            aria-label={`Delete sprint ${group.name}`}
+            onClick={() => setConfirmingDelete(true)}
+            className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-destructive/10 hover:text-destructive focus-visible:ring-3 focus-visible:ring-destructive/40"
+          >
+            <Trash2 className="size-3.5" aria-hidden="true" />
+          </button>
+        )}
       </h3>
+
+      {group.sprint && (
+        <DeleteSprintDialog
+          open={confirmingDelete}
+          onOpenChange={setConfirmingDelete}
+          sprint={group.sprint}
+          sprints={sprints}
+          issues={group.issues}
+          activeSlug={activeSlug}
+        />
+      )}
+
+      {group.issues.length === 0 && (
+        <p className="px-1.5 pb-1 text-xs leading-relaxed text-muted-foreground">
+          Nothing in this sprint yet.
+        </p>
+      )}
 
       <ul
         ref={listRef}
@@ -364,6 +420,7 @@ function SprintGroup({
 
               {issue.isOwner && (
                 <>
+                  <MoveIssueMenu issue={issue} sprints={sprints} />
                   <EditIssueButton issue={issue} sprints={sprints} />
                   <DeleteIssueDialog issue={issue} isActive={active} />
                 </>

@@ -292,6 +292,95 @@ export async function deleteIssue(issueId: string): Promise<IssueResult> {
   return {}
 }
 
+/**
+ * Refiles one issue, or takes it out of every sprint when `sprintId` is null.
+ *
+ * A focused action rather than a trip through `updateIssue`: that one takes a
+ * whole draft and would need the row's deck and timebox echoed back just to
+ * change which sprint it sits in — and re-sending the deck is exactly the
+ * thing the closed-issue freeze and the deck-locked guard would then refuse.
+ *
+ * Owner-only via `issues_update_owner`, and the `poko_issues_before_update`
+ * trigger is what checks the destination is yours. Moving a CLOSED issue is
+ * allowed on purpose: filing a settled estimate under the right sprint is
+ * housekeeping, not a rewrite of the round.
+ */
+export async function moveIssueToSprint(
+  issueId: string,
+  sprintId: string | null
+): Promise<IssueResult> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("issues")
+    .update({ sprint_id: sprintId })
+    .eq("id", issueId)
+    .select("id")
+
+  if (error) return { formError: describe(error) }
+  if (!data?.length) {
+    return { formError: "That issue is gone, or isn't yours to move." }
+  }
+
+  revalidateIssue()
+  return {}
+}
+
+/**
+ * What to do with a sprint's issues when the sprint itself goes.
+ *
+ * Deliberately not defaultable — the three differ by whether your issues
+ * survive, so the UI asks and the database refuses anything it does not
+ * recognise rather than picking one.
+ */
+export type SprintDisposition = "uncategorize" | "move" | "delete"
+
+export type DeleteSprintResult = IssueResult & {
+  /** How many issues were moved, unassigned or deleted. */
+  affected?: number
+}
+
+/**
+ * Deletes a sprint, having been told what becomes of what was in it.
+ *
+ * One RPC rather than two calls, because every disposition is "do something to
+ * the issues, THEN drop the sprint" — and a client doing that in two steps can
+ * be interrupted between them, leaving issues already moved or already deleted
+ * while the sprint they came from still stands.
+ */
+export async function deleteSprint(
+  sprintId: string,
+  issues: SprintDisposition,
+  toSprintId?: string | null
+): Promise<DeleteSprintResult> {
+  if (issues !== "uncategorize" && issues !== "move" && issues !== "delete") {
+    return { formError: "That isn't something we can do with those issues." }
+  }
+
+  if (issues === "move" && !toSprintId) {
+    return { formError: "Pick the sprint those issues should move to." }
+  }
+
+  const supabase = await createClient()
+
+  // The target is omitted rather than sent as null for the other two
+  // dispositions, so the function's own default applies. Sending null would
+  // also work, but the generated Args type has it as an optional string —
+  // absent is the shape it describes.
+  const { data, error } = await supabase.rpc("delete_sprint", {
+    p_sprint_id: sprintId,
+    p_issues: issues,
+    ...(issues === "move" && toSprintId
+      ? { p_target_sprint_id: toSprintId }
+      : {}),
+  })
+
+  if (error) return { formError: describe(error) }
+
+  revalidateIssue()
+  return { affected: data ?? 0 }
+}
+
 /** Which issues a bulk clear takes with it. */
 export type ClearScope = "voted" | "all"
 
@@ -603,6 +692,10 @@ function describe(error: { code?: string; hint?: string | null; message: string 
       return "Sign in before joining an issue."
     case "poko_sprint_not_yours":
       return "That sprint isn't yours to file an issue in."
+    case "poko_bad_disposition":
+      return "That isn't something we can do with those issues."
+    case "poko_bad_target":
+      return "Pick a different sprint for those issues to move to."
     case "poko_order_missing":
     case "poko_order_too_long":
       return "Couldn't save that order. Reload and try again."

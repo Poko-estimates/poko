@@ -269,6 +269,14 @@ export type Database = {
       }
       deactivate_own_account: { Args: never; Returns: undefined }
       delete_own_account: { Args: never; Returns: undefined }
+      delete_sprint: {
+        Args: {
+          p_issues: string
+          p_sprint_id: string
+          p_target_sprint_id?: string
+        }
+        Returns: number
+      }
       join_issue: {
         Args: { p_display_name?: string; p_slug: string }
         Returns: {

@@ -23,7 +23,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(81);
+select plan(96);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -771,6 +771,147 @@ select lives_ok(
   format($$ update public.issues set sprint_id = %L where id = %L $$,
          :'later_sprint_id', :'keyed_id'),
   'a closed issue CAN still be moved between sprints'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Deleting a sprint, and what becomes of what was in it
+--
+-- delete_sprint() is two writes in one transaction, and the three dispositions
+-- differ by whether the issues survive. Each gets its own sprint here, because
+-- an assertion that shares one with another would be asserting against
+-- whatever the previous branch left behind.
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+
+-- 'move': the issues change sprint, the sprint goes.
+insert into public.sprints (name) values ('To be merged');
+select id as merge_from_id from public.sprints where name = 'To be merged' \gset
+
+insert into public.issues (name, key, deck_name, deck_values, sprint_id)
+values ('Merge me', 'PK-301', 'Fibonacci', array['1','2','3'], :'merge_from_id'::uuid);
+select id as merged_issue_id from public.issues where key = 'PK-301' \gset
+
+select is(
+  public.delete_sprint(:'merge_from_id', 'move', :'later_sprint_id'),
+  1,
+  'delete_sprint reports how many issues it moved'
+);
+
+select is(
+  (select sprint_id from public.issues where id = :'merged_issue_id'::uuid),
+  :'later_sprint_id'::uuid,
+  'the issues landed in the sprint that was named'
+);
+
+select is_empty(
+  format($$ select 1 from public.sprints where id = %L $$, :'merge_from_id'),
+  'and the emptied sprint is gone'
+);
+
+-- 'uncategorize': nothing is written to the issues at all — the FK's
+-- ON DELETE SET NULL is what unassigns them.
+insert into public.sprints (name) values ('To be dissolved');
+select id as dissolve_id from public.sprints where name = 'To be dissolved' \gset
+
+insert into public.issues (name, key, deck_name, deck_values, sprint_id)
+values ('Keep me', 'PK-302', 'Fibonacci', array['1','2','3'], :'dissolve_id'::uuid);
+select id as kept_issue_id from public.issues where key = 'PK-302' \gset
+
+select is(
+  public.delete_sprint(:'dissolve_id', 'uncategorize'),
+  1,
+  'delete_sprint counts the issues it is about to unassign'
+);
+
+select is(
+  (select sprint_id from public.issues where id = :'kept_issue_id'::uuid),
+  null,
+  'uncategorize leaves the issues standing, with no sprint'
+);
+
+-- 'delete': the issues go too, cards and all. The vote makes this the case
+-- that has to reach through the BEFORE DELETE guard on votes.
+insert into public.sprints (name) values ('To be emptied');
+select id as empty_id from public.sprints where name = 'To be emptied' \gset
+
+insert into public.issues (name, key, deck_name, deck_values, sprint_id)
+values ('Delete me', 'PK-303', 'Fibonacci', array['1','2','3'], :'empty_id'::uuid);
+select id as doomed_issue_id from public.issues where key = 'PK-303' \gset
+
+insert into public.votes (issue_id, round, value) values (:'doomed_issue_id', 1, '2');
+
+select is(
+  public.delete_sprint(:'empty_id', 'delete'),
+  1,
+  'delete_sprint reports how many issues it deleted'
+);
+
+select is_empty(
+  format($$ select 1 from public.issues where id = %L $$, :'doomed_issue_id'),
+  'the issues in it are gone'
+);
+
+select pg_temp.act_as_postgres();
+select is(
+  (select count(*)::int from public.votes where issue_id = :'doomed_issue_id'::uuid),
+  0,
+  'and their cards went with them'
+);
+
+-- The refusals. Each is a way the call could be wrong, and none of them may
+-- take the sprint with them.
+select pg_temp.act_as(:'owner_id');
+
+insert into public.sprints (name) values ('Survivor');
+select id as survivor_id from public.sprints where name = 'Survivor' \gset
+
+-- An unrecognised disposition must not fall through to a branch. If it did,
+-- the sprint would be deleted with the issues handled by whichever default the
+-- code happened to reach.
+select throws_ok(
+  format($$ select public.delete_sprint(%L, 'shred') $$, :'survivor_id'),
+  'P0001', null,
+  'an unrecognised disposition is refused rather than defaulted'
+);
+
+select throws_ok(
+  format($$ select public.delete_sprint(%L, 'move', null) $$, :'survivor_id'),
+  'P0001', null,
+  'moving the issues with no destination is refused'
+);
+
+select throws_ok(
+  format($$ select public.delete_sprint(%L, 'move', %L) $$,
+         :'survivor_id', :'survivor_id'),
+  'P0001', null,
+  'moving the issues into the sprint being deleted is refused'
+);
+
+select throws_ok(
+  format($$ select public.delete_sprint(%L, 'move', %L) $$,
+         :'survivor_id', :'other_sprint_id'),
+  42501, null,
+  'moving the issues into somebody else''s sprint is refused'
+);
+
+select isnt_empty(
+  format($$ select 1 from public.sprints where id = %L $$, :'survivor_id'),
+  'every refusal left the sprint where it was'
+);
+
+-- Someone else's sprint is not theirs to delete, whatever they ask for.
+select pg_temp.act_as(:'player_id');
+select throws_ok(
+  format($$ select public.delete_sprint(%L, 'delete') $$, :'survivor_id'),
+  42501, null,
+  'a sprint you do not own cannot be deleted'
+);
+
+select pg_temp.act_as_postgres();
+select isnt_empty(
+  format($$ select 1 from public.sprints where id = %L $$, :'survivor_id'),
+  'and it really is still there'
 );
 
 
