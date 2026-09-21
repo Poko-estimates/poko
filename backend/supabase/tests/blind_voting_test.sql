@@ -1,4 +1,4 @@
--- Blind voting, round lifecycle, and the grant boundary.
+-- Blind voting, round lifecycle, per-user ordering, and the grant boundary.
 --
 -- Every assertion here maps to a specific way this schema could fail SILENTLY
 -- — correct-looking code, no error, wrong data visible. Run with:
@@ -12,10 +12,10 @@
 -- Two structural notes, both learned the hard way:
 --
 --   * The slug and id are captured with \gset while the OWNER can see the
---     game, then passed around as literals. Not a convenience: someone who has
---     not joined cannot read the game row at all, so they could never look the
---     slug up. They know it because it was in the link they were sent — which
---     is exactly why join_game() has to be security definer.
+--     issue, then passed around as literals. Not a convenience: someone who
+--     has not joined cannot read the issue row at all, so they could never
+--     look the slug up. They know it because it was in the link they were sent
+--     — which is exactly why join_issue() has to be security definer.
 --   * With two seats, the second vote AUTO-CLOSES the round. So anything that
 --     needs an open round has to happen while only one seat has voted.
 
@@ -23,7 +23,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(57);
+select plan(96);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -59,48 +59,48 @@ end; $$;
 
 
 -- ---------------------------------------------------------------------------
--- Creating a game
+-- Creating an issue
 -- ---------------------------------------------------------------------------
 select pg_temp.act_as(:'owner_id');
 
-insert into public.games (name, deck_name, deck_values)
+insert into public.issues (name, deck_name, deck_values)
 values ('Sprint 24 refinement', 'Fibonacci',
         array['0','1','2','3','5','8','13','21','?','☕']);
 
 select isnt_empty(
-  $$ select 1 from public.games where name = 'Sprint 24 refinement' $$,
-  'owner can create a game and read it back'
+  $$ select 1 from public.issues where name = 'Sprint 24 refinement' $$,
+  'owner can create an issue and read it back'
 );
 
 select matches(
-  (select slug from public.games where name = 'Sprint 24 refinement'),
+  (select slug from public.issues where name = 'Sprint 24 refinement'),
   '^sprint-24-refinement-[0-9a-f]{12}$',
   'slug is the name prefix plus 12 hex characters of entropy'
 );
 
-select id as game_id, slug as game_slug
-  from public.games where name = 'Sprint 24 refinement'
+select id as issue_id, slug as issue_slug
+  from public.issues where name = 'Sprint 24 refinement'
 \gset
 
--- Creating a game seats its owner, so they can vote without following their
+-- Creating an issue seats its owner, so they can vote without following their
 -- own invite link first.
 select is(
-  (select display_name from public.game_participants
+  (select display_name from public.issue_participants
     where user_id = :'owner_id'::uuid),
   'Ama Owner',
-  'creating a game seats the owner, named from their account'
+  'creating an issue seats the owner, named from their account'
 );
 
 -- Deck validation is enforced by the database, not only by the create dialog.
 select throws_ok(
-  $$ insert into public.games (name, deck_name, deck_values)
+  $$ insert into public.issues (name, deck_name, deck_values)
      values ('One card', 'Silly', array['1']) $$,
   23514, null,
   'a deck with fewer than 2 values is rejected'
 );
 
 select throws_ok(
-  $$ insert into public.games (name, deck_name, deck_values)
+  $$ insert into public.issues (name, deck_name, deck_values)
      values ('Dupes', 'Silly', array['1','1','2']) $$,
   23514, null,
   'a deck with duplicate values is rejected'
@@ -113,44 +113,44 @@ select throws_ok(
 select pg_temp.act_as(:'guest_id', true);
 
 select throws_ok(
-  $$ insert into public.games (name, deck_name, deck_values)
-     values ('Guest game', 'Fibonacci', array['1','2','3']) $$,
+  $$ insert into public.issues (name, deck_name, deck_values)
+     values ('Guest issue', 'Fibonacci', array['1','2','3']) $$,
   42501, null,
-  'an anonymous user cannot own a game (restrictive policy)'
+  'an anonymous user cannot own an issue (restrictive policy)'
 );
 
 
 -- ---------------------------------------------------------------------------
--- Joining is only possible through join_game()
+-- Joining is only possible through join_issue()
 -- ---------------------------------------------------------------------------
 select pg_temp.act_as(:'player_id');
 
 select throws_ok(
-  format($$ insert into public.game_participants (game_id, user_id, display_name)
-            values (%L, %L, 'Sneaky') $$, :'game_id', :'player_id'),
+  format($$ insert into public.issue_participants (issue_id, user_id, display_name)
+            values (%L, %L, 'Sneaky') $$, :'issue_id', :'player_id'),
   42501, null,
-  'a client cannot insert a seat directly — join_game() is the only door'
+  'a client cannot insert a seat directly — join_issue() is the only door'
 );
 
 select throws_ok(
-  $$ select public.join_game('no-such-room-abcdef123456') $$,
+  $$ select public.join_issue('no-such-room-abcdef123456') $$,
   'P0002', null,
   'joining an unknown slug raises rather than silently doing nothing'
 );
 
 select pg_temp.act_as(:'owner_id');
-select public.join_game(:'game_slug', 'Ama');
+select public.join_issue(:'issue_slug', 'Ama');
 
 select pg_temp.act_as(:'player_id');
-select public.join_game(:'game_slug', 'Kojo');
+select public.join_issue(:'issue_slug', 'Kojo');
 
 select lives_ok(
-  format($$ select public.join_game(%L, 'Kojo K.') $$, :'game_slug'),
-  'join_game is idempotent — re-opening the link is safe'
+  format($$ select public.join_issue(%L, 'Kojo K.') $$, :'issue_slug'),
+  'join_issue is idempotent — re-opening the link is safe'
 );
 
 select is(
-  (select count(*)::int from public.game_participants),
+  (select count(*)::int from public.issue_participants),
   2,
   'the idempotent re-join did not create a second seat'
 );
@@ -162,12 +162,12 @@ select is(
 select pg_temp.act_as(:'outsider_id');
 
 select is_empty(
-  $$ select 1 from public.games $$,
-  'someone who was never invited cannot see the game'
+  $$ select 1 from public.issues $$,
+  'someone who was never invited cannot see the issue'
 );
 
 select is_empty(
-  $$ select 1 from public.game_participants $$,
+  $$ select 1 from public.issue_participants $$,
   'someone who was never invited cannot see the roster'
 );
 
@@ -176,7 +176,7 @@ select is_empty(
 -- ROUND 1 — the central test: blind voting, then a split vote
 -- ---------------------------------------------------------------------------
 select pg_temp.act_as(:'owner_id');
-insert into public.votes (game_id, round, value) values (:'game_id', 1, '5');
+insert into public.votes (issue_id, round, value) values (:'issue_id', 1, '5');
 
 select pg_temp.act_as(:'player_id');
 
@@ -187,14 +187,14 @@ select is(
 );
 
 select is(
-  (select count(*)::int from public.game_participants where voted_round is not null),
+  (select count(*)::int from public.issue_participants where voted_round is not null),
   1,
   'progress is visible: the roster shows who has a card down'
 );
 
 select throws_ok(
-  format($$ insert into public.votes (game_id, round, value)
-            values (%L, 1, '999') $$, :'game_id'),
+  format($$ insert into public.votes (issue_id, round, value)
+            values (%L, 1, '999') $$, :'issue_id'),
   'P0001', null,
   'a value outside the deck is rejected by the guard trigger'
 );
@@ -203,7 +203,7 @@ select throws_ok(
 -- SELECT policy ever loses its `user_id = auth.uid()` branch, this silently
 -- affects 0 rows with no error raised anywhere.
 select pg_temp.act_as(:'owner_id');
-update public.votes set value = '8' where game_id = :'game_id';
+update public.votes set value = '8' where issue_id = :'issue_id';
 
 select is(
   (select value from public.votes where user_id = :'owner_id'::uuid),
@@ -213,31 +213,31 @@ select is(
 
 select pg_temp.act_as_postgres();
 select is(
-  (select status from public.games where id = :'game_id'::uuid),
+  (select status from public.issues where id = :'issue_id'::uuid),
   'voting',
   'one of two seats voting leaves the round open'
 );
 
 -- The second card lands: 8 vs 3, so the round closes without consensus.
 select pg_temp.act_as(:'player_id');
-insert into public.votes (game_id, round, value) values (:'game_id', 1, '3');
+insert into public.votes (issue_id, round, value) values (:'issue_id', 1, '3');
 
 select pg_temp.act_as_postgres();
 
 select is(
-  (select status from public.games where id = :'game_id'::uuid),
+  (select status from public.issues where id = :'issue_id'::uuid),
   'closed',
   'the round auto-closed once every seat had a card down'
 );
 
 select is(
-  (select closed_reason from public.games where id = :'game_id'::uuid),
+  (select closed_reason from public.issues where id = :'issue_id'::uuid),
   'all_voted',
   'closed_reason records how the round ended'
 );
 
 select is(
-  (select estimate from public.games where id = :'game_id'::uuid),
+  (select estimate from public.issues where id = :'issue_id'::uuid),
   null,
   'a split vote records NO estimate (unanimous or nothing)'
 );
@@ -255,7 +255,7 @@ select is(
 );
 
 select throws_ok(
-  format($$ update public.votes set value = '13' where game_id = %L $$, :'game_id'),
+  format($$ update public.votes set value = '13' where issue_id = %L $$, :'issue_id'),
   'P0001', null,
   'no vote can be cast or changed after the round closes'
 );
@@ -263,13 +263,13 @@ select throws_ok(
 -- Blind voting's real guarantee: a participant cannot move the round at all.
 -- This fails on the missing column grant, before RLS is even consulted.
 select throws_ok(
-  $$ update public.games set status = 'closed' $$,
+  $$ update public.issues set status = 'closed' $$,
   42501, null,
   'a participant cannot write status — no column grant exists'
 );
 
 select throws_ok(
-  format($$ select public.reopen_round(%L) $$, :'game_id'),
+  format($$ select public.reopen_round(%L) $$, :'issue_id'),
   42501, null,
   'only the owner can reopen a round'
 );
@@ -279,41 +279,41 @@ select throws_ok(
 -- ROUND 2 — reopening keeps history, and a unanimous vote records an estimate
 -- ---------------------------------------------------------------------------
 select pg_temp.act_as(:'owner_id');
-select public.reopen_round(:'game_id');
+select public.reopen_round(:'issue_id');
 
 select pg_temp.act_as_postgres();
 
 select is(
-  (select round from public.games where id = :'game_id'::uuid),
+  (select round from public.issues where id = :'issue_id'::uuid),
   2,
   'reopening advanced the round counter rather than deleting votes'
 );
 
--- Scoped to this game on purpose. These run as postgres, which bypasses RLS,
--- so an unscoped count would silently include every other game in the database
--- and the assertion would only hold on a freshly reset one.
+-- Scoped to this issue on purpose. These run as postgres, which bypasses RLS,
+-- so an unscoped count would silently include every other issue in the
+-- database and the assertion would only hold on a freshly reset one.
 select is(
-  (select count(*)::int from public.game_participants
-    where game_id = :'game_id'::uuid and voted_round = 2),
+  (select count(*)::int from public.issue_participants
+    where issue_id = :'issue_id'::uuid and voted_round = 2),
   0,
   'reopening cleared every seat with one write'
 );
 
 select is(
   (select count(*)::int from public.votes
-    where game_id = :'game_id'::uuid and round = 1),
+    where issue_id = :'issue_id'::uuid and round = 1),
   2,
   'the previous round''s cards survive a reopen and stay readable'
 );
 
 select pg_temp.act_as(:'owner_id');
-insert into public.votes (game_id, round, value) values (:'game_id', 2, '3');
+insert into public.votes (issue_id, round, value) values (:'issue_id', 2, '3');
 select pg_temp.act_as(:'player_id');
-insert into public.votes (game_id, round, value) values (:'game_id', 2, '3');
+insert into public.votes (issue_id, round, value) values (:'issue_id', 2, '3');
 
 select pg_temp.act_as_postgres();
 select is(
-  (select estimate from public.games where id = :'game_id'::uuid),
+  (select estimate from public.issues where id = :'issue_id'::uuid),
   '3',
   'a unanimous vote records the agreed card as the estimate'
 );
@@ -329,25 +329,25 @@ select is(
 -- room of three where the last holdout walks out.
 -- ---------------------------------------------------------------------------
 select pg_temp.act_as(:'guest_id', true);
-select public.join_game(:'game_slug', 'Guest');
+select public.join_issue(:'issue_slug', 'Guest');
 
 select is(
-  (select count(*)::int from public.game_participants),
+  (select count(*)::int from public.issue_participants),
   3,
   'an anonymous guest can take a seat at the table'
 );
 
 select pg_temp.act_as(:'owner_id');
-select public.reopen_round(:'game_id');
-insert into public.votes (game_id, round, value) values (:'game_id', 3, '5');
+select public.reopen_round(:'issue_id');
+insert into public.votes (issue_id, round, value) values (:'issue_id', 3, '5');
 
 -- A guest votes like anyone else.
 select pg_temp.act_as(:'guest_id', true);
-insert into public.votes (game_id, round, value) values (:'game_id', 3, '5');
+insert into public.votes (issue_id, round, value) values (:'issue_id', 3, '5');
 
 select pg_temp.act_as_postgres();
 select is(
-  (select status from public.games where id = :'game_id'::uuid),
+  (select status from public.issues where id = :'issue_id'::uuid),
   'voting',
   'round 3 is open with two of three cards down'
 );
@@ -355,11 +355,11 @@ select is(
 -- The last holdout walks out without voting. The room must not hang forever
 -- waiting for someone who left.
 select pg_temp.act_as(:'player_id');
-delete from public.game_participants where user_id = :'player_id'::uuid;
+delete from public.issue_participants where user_id = :'player_id'::uuid;
 
 select pg_temp.act_as_postgres();
 select is(
-  (select status from public.games where id = :'game_id'::uuid),
+  (select status from public.issues where id = :'issue_id'::uuid),
   'closed',
   'a seat leaving re-evaluates auto-close, so the round settles'
 );
@@ -374,43 +374,43 @@ select is(
 -- votes fires the BEFORE DELETE guard while the round is closed.
 select pg_temp.act_as(:'owner_id');
 select lives_ok(
-  format($$ delete from public.game_participants
-             where game_id = %L and user_id = %L $$, :'game_id', :'owner_id'),
+  format($$ delete from public.issue_participants
+             where issue_id = %L and user_id = %L $$, :'issue_id', :'owner_id'),
   'leaving the table after a reveal succeeds (cascade-delete guard)'
 );
 
 
 -- ---------------------------------------------------------------------------
--- Editing a game, and the one edit that has to be refused
+-- Editing an issue, and the one edit that has to be refused
 -- ---------------------------------------------------------------------------
--- Its own game, still open. The narrative game above has been through three
--- rounds and is closed by this point, and a closed game is frozen — so reusing
--- it here would test the wrong rule.
+-- Its own issue, still open. The narrative issue above has been through three
+-- rounds and is closed by this point, and a closed issue is frozen — so
+-- reusing it here would test the wrong rule.
 select pg_temp.act_as(:'owner_id');
 
-insert into public.games (name, deck_name, deck_values, round_duration_seconds)
+insert into public.issues (name, deck_name, deck_values, round_duration_seconds)
 values ('Open and editable', 'Fibonacci', array['1','2','3'], 60);
 
 select id as editable_id, slug as editable_slug
-  from public.games where name = 'Open and editable'
+  from public.issues where name = 'Open and editable'
 \gset
 
 select pg_temp.act_as(:'player_id');
-select public.join_game(:'editable_slug', 'Kojo');
+select public.join_issue(:'editable_slug', 'Kojo');
 
 -- One card of two: enough to lock the deck, not enough to auto-close.
 select pg_temp.act_as(:'owner_id');
-insert into public.votes (game_id, round, value) values (:'editable_id', 1, '2');
+insert into public.votes (issue_id, round, value) values (:'editable_id', 1, '2');
 
 select lives_ok(
-  format($$ update public.games set name = 'Renamed mid-round' where id = %L $$,
+  format($$ update public.issues set name = 'Renamed mid-round' where id = %L $$,
          :'editable_id'),
-  'the owner can rename an open game mid-round'
+  'the owner can rename an open issue mid-round'
 );
 
 -- Swapping the deck now would leave that card with a face the deck no longer has.
 select throws_ok(
-  format($$ update public.games set deck_values = array['XS','S','M']
+  format($$ update public.issues set deck_values = array['XS','S','M']
              where id = %L $$, :'editable_id'),
   'P0001', null,
   'the deck cannot be changed once cards are down'
@@ -418,61 +418,61 @@ select throws_ok(
 
 -- The timebox is still fair game: it only affects the next round's clock.
 select lives_ok(
-  format($$ update public.games set round_duration_seconds = 300
+  format($$ update public.issues set round_duration_seconds = 300
              where id = %L $$, :'editable_id'),
   'the timebox can be changed mid-round'
 );
 
 -- A closed round's details are frozen; reopening is the way back to editing.
--- Uses its own game so the round-1 narrative above is undisturbed.
+-- Uses its own issue so the round-1 narrative above is undisturbed.
 select pg_temp.act_as(:'owner_id');
 
-insert into public.games (name, deck_name, deck_values, round_duration_seconds)
+insert into public.issues (name, deck_name, deck_values, round_duration_seconds)
 values ('Closed and frozen', 'Fibonacci', array['1','2','3'], 60);
 
-select id as frozen_id from public.games where name = 'Closed and frozen'
+select id as frozen_id from public.issues where name = 'Closed and frozen'
 \gset
 
-insert into public.votes (game_id, round, value) values (:'frozen_id', 1, '2');
+insert into public.votes (issue_id, round, value) values (:'frozen_id', 1, '2');
 select public.close_round(:'frozen_id');
 
 select throws_ok(
-  format($$ update public.games set name = 'Renamed while closed'
+  format($$ update public.issues set name = 'Renamed while closed'
              where id = %L $$, :'frozen_id'),
   'P0001', null,
-  'a closed game cannot be renamed'
+  'a closed issue cannot be renamed'
 );
 
 select throws_ok(
-  format($$ update public.games set summary = 'Sneaky' where id = %L $$,
+  format($$ update public.issues set summary = 'Sneaky' where id = %L $$,
          :'frozen_id'),
   'P0001', null,
-  'a closed game cannot have its summary changed'
+  'a closed issue cannot have its summary changed'
 );
 
 -- The round transitions have to keep working through the same trigger.
 select lives_ok(
   format($$ select public.set_estimate(%L, '2') $$, :'frozen_id'),
-  'set_estimate still works on a closed game'
+  'set_estimate still works on a closed issue'
 );
 
 select lives_ok(
   format($$ select public.reopen_round(%L) $$, :'frozen_id'),
-  'reopen_round still works on a closed game'
+  'reopen_round still works on a closed issue'
 );
 
 select lives_ok(
-  format($$ update public.games set name = 'Renamed after reopening'
+  format($$ update public.issues set name = 'Renamed after reopening'
              where id = %L $$, :'frozen_id'),
   'reopening unfreezes the details'
 );
 
 select pg_temp.act_as(:'player_id');
-update public.games set name = 'Hijacked' where id = :'game_id'::uuid;
+update public.issues set name = 'Hijacked' where id = :'issue_id'::uuid;
 
 select pg_temp.act_as_postgres();
 select is(
-  (select name from public.games where id = :'game_id'::uuid),
+  (select name from public.issues where id = :'issue_id'::uuid),
   'Sprint 24 refinement',
   'a participant''s edit matches no rows — the name is unchanged'
 );
@@ -484,30 +484,30 @@ select is(
 select pg_temp.act_as(:'owner_id');
 
 select is(
-  (select summary from public.games where id = :'game_id'::uuid),
+  (select summary from public.issues where id = :'issue_id'::uuid),
   null,
-  'a game created without a summary has none'
+  'an issue created without a summary has none'
 );
 
 select pg_temp.act_as(:'owner_id');
-update public.games set summary = 'Added after the fact.'
+update public.issues set summary = 'Added after the fact.'
  where id = :'editable_id'::uuid;
 
 select is(
-  (select summary from public.games where id = :'editable_id'::uuid),
+  (select summary from public.issues where id = :'editable_id'::uuid),
   'Added after the fact.',
-  'a summary can be added to an existing open game'
+  'a summary can be added to an existing open issue'
 );
 
 select throws_ok(
-  $$ insert into public.games (name, deck_name, deck_values, summary)
+  $$ insert into public.issues (name, deck_name, deck_values, summary)
      values ('Blank summary', 'Fib', array['1','2'], '   ') $$,
   23514, null,
   'a whitespace-only summary is rejected — null is the only way to say "none"'
 );
 
 select throws_ok(
-  format($$ insert into public.games (name, deck_name, deck_values, summary)
+  format($$ insert into public.issues (name, deck_name, deck_values, summary)
             values ('Too long', 'Fib', array['1','2'], %L) $$,
          repeat('x', 501)),
   23514, null,
@@ -515,34 +515,34 @@ select throws_ok(
 );
 
 select lives_ok(
-  $$ insert into public.games (name, deck_name, deck_values, summary)
+  $$ insert into public.issues (name, deck_name, deck_values, summary)
      values ('With summary', 'Fib', array['1','2'],
              'Add SSO for enterprise workspaces.') $$,
-  'a game can be created with a summary'
+  'an issue can be created with a summary'
 );
 
 
 -- ---------------------------------------------------------------------------
--- The clock is started deliberately, not by creating the game
+-- The clock is started deliberately, not by creating the issue
 -- ---------------------------------------------------------------------------
 select pg_temp.act_as(:'owner_id');
 
-insert into public.games (name, deck_name, deck_values, round_duration_seconds)
-values ('Timed game', 'Fibonacci', array['1','2','3'], 60);
+insert into public.issues (name, deck_name, deck_values, round_duration_seconds)
+values ('Timed issue', 'Fibonacci', array['1','2','3'], 60);
 
-select id as timed_id from public.games where name = 'Timed game'
+select id as timed_id from public.issues where name = 'Timed issue'
 \gset
 
 select is(
-  (select round_ends_at from public.games where id = :'timed_id'::uuid),
+  (select round_ends_at from public.issues where id = :'timed_id'::uuid),
   null,
-  'creating a timed game does not start its clock'
+  'creating a timed issue does not start its clock'
 );
 
 select throws_ok(
-  format($$ select public.start_round(%L) $$, :'game_id'),
+  format($$ select public.start_round(%L) $$, :'issue_id'),
   'P0001', null,
-  'a game with no timebox has no clock to start'
+  'an issue with no timebox has no clock to start'
 );
 
 select pg_temp.act_as(:'player_id');
@@ -556,7 +556,7 @@ select pg_temp.act_as(:'owner_id');
 select public.start_round(:'timed_id');
 
 select isnt(
-  (select round_ends_at from public.games where id = :'timed_id'::uuid),
+  (select round_ends_at from public.issues where id = :'timed_id'::uuid),
   null,
   'start_round sets the deadline'
 );
@@ -565,44 +565,445 @@ select isnt(
 select public.start_round(:'timed_id');
 
 select is(
-  (select round_ends_at from public.games where id = :'timed_id'::uuid),
+  (select round_ends_at from public.issues where id = :'timed_id'::uuid),
   (select round_started_at + make_interval(secs => round_duration_seconds)
-     from public.games where id = :'timed_id'::uuid),
+     from public.issues where id = :'timed_id'::uuid),
   'starting an already-running clock leaves the deadline where it was'
 );
 
 
 -- ---------------------------------------------------------------------------
--- A game with votes can still be deleted
+-- Your list order is yours
 --
--- Deleting a game cascades to its votes, which fires the BEFORE DELETE guard
--- while the parent row is already gone. Without a branch for that, deleting any
--- game that had ever been voted in would fail — and so would deleting a user,
--- which cascades to the games they own.
+-- The whole reason issue_order is keyed on the user and written through an RPC
+-- rather than being a column on `issues`: the list you drag includes issues
+-- you only have a seat at, so ordering has to be a private preference that
+-- nobody else's drag can move.
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+
+select throws_ok(
+  format($$ insert into public.issue_order (user_id, issue_id, sort_order)
+            values (%L, %L, 1) $$, :'owner_id', :'timed_id'),
+  42501, null,
+  'a client cannot write issue_order directly — reorder_issues() is the only door'
+);
+
+select public.reorder_issues(array[:'timed_id', :'editable_id']::uuid[]);
+
+select results_eq(
+  format($$ select issue_id, sort_order from public.issue_order
+             where user_id = %L order by sort_order $$, :'owner_id'),
+  format($$ values (%L::uuid, 1), (%L::uuid, 2) $$, :'timed_id', :'editable_id'),
+  'reorder_issues stores the order that was sent, numbered from 1'
+);
+
+-- Replaces rather than merges: issues left out of the call stop being ranked,
+-- which is what keeps a deleted issue from holding a slot forever.
+select public.reorder_issues(array[:'editable_id']::uuid[]);
+
+select results_eq(
+  format($$ select issue_id, sort_order from public.issue_order
+             where user_id = %L order by sort_order $$, :'owner_id'),
+  format($$ values (%L::uuid, 1) $$, :'editable_id'),
+  'a second reorder replaces the whole order rather than adding to it'
+);
+
+-- A stale tab can hold an id that is gone, or one it never had any business
+-- naming. Those are dropped and the rest of the order still saves — and the
+-- numbering closes up behind them rather than leaving a gap.
+select public.reorder_issues(
+  array[:'editable_id', gen_random_uuid(), :'timed_id']::uuid[]
+);
+
+select results_eq(
+  format($$ select issue_id, sort_order from public.issue_order
+             where user_id = %L order by sort_order $$, :'owner_id'),
+  format($$ values (%L::uuid, 1), (%L::uuid, 2) $$, :'editable_id', :'timed_id'),
+  'an issue the caller cannot see is dropped, and the rest renumber contiguously'
+);
+
+-- The player has a seat at `editable_id` but does not own it, so they may rank
+-- it — and doing so must not touch the owner's order.
+select pg_temp.act_as(:'player_id');
+select public.reorder_issues(array[:'editable_id']::uuid[]);
+
+select is(
+  (select count(*)::int from public.issue_order),
+  1,
+  'each person reads only their own order (RLS), not everybody''s'
+);
+
+select pg_temp.act_as(:'owner_id');
+select is(
+  (select count(*)::int from public.issue_order),
+  2,
+  'a participant reordering their own list leaves the owner''s order alone'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Sprints group issues, and a sprint belongs to one person
+--
+-- The sprint field creates on demand, so the interesting failures are about
+-- what a client can name: somebody else's sprint id, or the same sprint name
+-- twice.
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+
+-- WITH RETURNING, on purpose. A SELECT policy also gates an INSERT's
+-- RETURNING clause, so this is the shape every PostgREST insert takes — and
+-- the shape a plain `insert ... values` does NOT exercise. Behind a STABLE
+-- security-definer helper with no inline owner check, the function reads the
+-- pre-statement snapshot, cannot see the row being inserted, and this fails
+-- with 42501 while the bare insert below it passes happily.
+select lives_ok(
+  $$ insert into public.sprints (name) values ('Sprint 24') returning id $$,
+  'creating a sprint can read its own row back (RETURNING sees the new row)'
+);
+
+select id as sprint_id from public.sprints where name = 'Sprint 24' \gset
+
+select is(
+  (select owner_id from public.sprints where id = :'sprint_id'::uuid),
+  :'owner_id'::uuid,
+  'a sprint is owned by whoever created it, from auth.uid()'
+);
+
+-- Create-on-demand has to be able to trust that a name maps to one row, or
+-- "Sprint 24" typed twice would quietly fork into two groups in the sidebar.
+select throws_ok(
+  $$ insert into public.sprints (name) values ('sprint 24') $$,
+  23505, null,
+  'the same sprint name, in any case, cannot exist twice for one owner'
+);
+
+-- Another owner using the same name is none of their business.
+select pg_temp.act_as(:'player_id');
+select lives_ok(
+  $$ insert into public.sprints (name) values ('Sprint 24') $$,
+  'two different people may each have a sprint of the same name'
+);
+
+select id as other_sprint_id
+  from public.sprints where owner_id = :'player_id'::uuid \gset
+
+-- Sprints are private to their owner until an issue in them is shared.
+select is(
+  (select count(*)::int from public.sprints),
+  1,
+  'you see only your own sprints, not everybody''s'
+);
+
+select pg_temp.act_as(:'owner_id');
+
+select lives_ok(
+  format($$ insert into public.issues (name, key, deck_name, deck_values, sprint_id)
+            values ('Add SSO', 'PK-231', 'Fibonacci', array['1','2','3'], %L) $$,
+         :'sprint_id'),
+  'an issue can be filed in your own sprint, with a tracker key'
+);
+
+select id as keyed_id, slug as keyed_slug
+  from public.issues where key = 'PK-231'
+\gset
+
+-- THE guard: naming someone else's sprint id would file your issue inside
+-- their board. RLS cannot express this — it checks who is writing, not where
+-- the sprint_id points.
+select throws_ok(
+  format($$ insert into public.issues (name, deck_name, deck_values, sprint_id)
+            values ('Sneaky', 'Fibonacci', array['1','2'], %L) $$,
+         :'other_sprint_id'),
+  42501, null,
+  'an issue cannot be filed in a sprint somebody else owns'
+);
+
+select throws_ok(
+  format($$ update public.issues set sprint_id = %L where id = %L $$,
+         :'other_sprint_id', :'keyed_id'),
+  42501, null,
+  'nor moved into one afterwards'
+);
+
+-- A seat at the issue is what makes its sprint readable, so the sidebar can
+-- put a heading above an issue you are only estimating.
+select pg_temp.act_as(:'player_id');
+select public.join_issue(:'keyed_slug', 'Kojo');
+
+select isnt_empty(
+  format($$ select 1 from public.sprints where id = %L $$, :'sprint_id'),
+  'a participant can read the sprint of an issue they are seated at'
+);
+
+-- Losing a sprint must cost a grouping, never an estimate.
+select pg_temp.act_as(:'owner_id');
+delete from public.sprints where id = :'sprint_id'::uuid;
+
+select pg_temp.act_as_postgres();
+select is(
+  (select sprint_id from public.issues where id = :'keyed_id'::uuid),
+  null,
+  'deleting a sprint unassigns its issues rather than deleting them'
+);
+
+select isnt_empty(
+  format($$ select 1 from public.issues where id = %L $$, :'keyed_id'),
+  'the issue itself survived its sprint being deleted'
+);
+
+-- The key names the ticket an estimate belongs to, so it freezes with the
+-- rest of the details. The sprint does not: filing a settled estimate under
+-- the right sprint is housekeeping, not a rewrite of the round.
+select pg_temp.act_as(:'owner_id');
+select public.close_round(:'keyed_id');
+
+select throws_ok(
+  format($$ update public.issues set key = 'PK-999' where id = %L $$, :'keyed_id'),
+  'P0001', null,
+  'a closed issue cannot have its tracker key changed'
+);
+
+insert into public.sprints (name) values ('Sprint 25');
+select id as later_sprint_id from public.sprints where name = 'Sprint 25' \gset
+
+select lives_ok(
+  format($$ update public.issues set sprint_id = %L where id = %L $$,
+         :'later_sprint_id', :'keyed_id'),
+  'a closed issue CAN still be moved between sprints'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Deleting a sprint, and what becomes of what was in it
+--
+-- delete_sprint() is two writes in one transaction, and the three dispositions
+-- differ by whether the issues survive. Each gets its own sprint here, because
+-- an assertion that shares one with another would be asserting against
+-- whatever the previous branch left behind.
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+
+-- 'move': the issues change sprint, the sprint goes.
+insert into public.sprints (name) values ('To be merged');
+select id as merge_from_id from public.sprints where name = 'To be merged' \gset
+
+insert into public.issues (name, key, deck_name, deck_values, sprint_id)
+values ('Merge me', 'PK-301', 'Fibonacci', array['1','2','3'], :'merge_from_id'::uuid);
+select id as merged_issue_id from public.issues where key = 'PK-301' \gset
+
+select is(
+  public.delete_sprint(:'merge_from_id', 'move', :'later_sprint_id'),
+  1,
+  'delete_sprint reports how many issues it moved'
+);
+
+select is(
+  (select sprint_id from public.issues where id = :'merged_issue_id'::uuid),
+  :'later_sprint_id'::uuid,
+  'the issues landed in the sprint that was named'
+);
+
+select is_empty(
+  format($$ select 1 from public.sprints where id = %L $$, :'merge_from_id'),
+  'and the emptied sprint is gone'
+);
+
+-- 'uncategorize': nothing is written to the issues at all — the FK's
+-- ON DELETE SET NULL is what unassigns them.
+insert into public.sprints (name) values ('To be dissolved');
+select id as dissolve_id from public.sprints where name = 'To be dissolved' \gset
+
+insert into public.issues (name, key, deck_name, deck_values, sprint_id)
+values ('Keep me', 'PK-302', 'Fibonacci', array['1','2','3'], :'dissolve_id'::uuid);
+select id as kept_issue_id from public.issues where key = 'PK-302' \gset
+
+select is(
+  public.delete_sprint(:'dissolve_id', 'uncategorize'),
+  1,
+  'delete_sprint counts the issues it is about to unassign'
+);
+
+select is(
+  (select sprint_id from public.issues where id = :'kept_issue_id'::uuid),
+  null,
+  'uncategorize leaves the issues standing, with no sprint'
+);
+
+-- 'delete': the issues go too, cards and all. The vote makes this the case
+-- that has to reach through the BEFORE DELETE guard on votes.
+insert into public.sprints (name) values ('To be emptied');
+select id as empty_id from public.sprints where name = 'To be emptied' \gset
+
+insert into public.issues (name, key, deck_name, deck_values, sprint_id)
+values ('Delete me', 'PK-303', 'Fibonacci', array['1','2','3'], :'empty_id'::uuid);
+select id as doomed_issue_id from public.issues where key = 'PK-303' \gset
+
+insert into public.votes (issue_id, round, value) values (:'doomed_issue_id', 1, '2');
+
+select is(
+  public.delete_sprint(:'empty_id', 'delete'),
+  1,
+  'delete_sprint reports how many issues it deleted'
+);
+
+select is_empty(
+  format($$ select 1 from public.issues where id = %L $$, :'doomed_issue_id'),
+  'the issues in it are gone'
+);
+
+select pg_temp.act_as_postgres();
+select is(
+  (select count(*)::int from public.votes where issue_id = :'doomed_issue_id'::uuid),
+  0,
+  'and their cards went with them'
+);
+
+-- The refusals. Each is a way the call could be wrong, and none of them may
+-- take the sprint with them.
+select pg_temp.act_as(:'owner_id');
+
+insert into public.sprints (name) values ('Survivor');
+select id as survivor_id from public.sprints where name = 'Survivor' \gset
+
+-- An unrecognised disposition must not fall through to a branch. If it did,
+-- the sprint would be deleted with the issues handled by whichever default the
+-- code happened to reach.
+select throws_ok(
+  format($$ select public.delete_sprint(%L, 'shred') $$, :'survivor_id'),
+  'P0001', null,
+  'an unrecognised disposition is refused rather than defaulted'
+);
+
+select throws_ok(
+  format($$ select public.delete_sprint(%L, 'move', null) $$, :'survivor_id'),
+  'P0001', null,
+  'moving the issues with no destination is refused'
+);
+
+select throws_ok(
+  format($$ select public.delete_sprint(%L, 'move', %L) $$,
+         :'survivor_id', :'survivor_id'),
+  'P0001', null,
+  'moving the issues into the sprint being deleted is refused'
+);
+
+select throws_ok(
+  format($$ select public.delete_sprint(%L, 'move', %L) $$,
+         :'survivor_id', :'other_sprint_id'),
+  42501, null,
+  'moving the issues into somebody else''s sprint is refused'
+);
+
+select isnt_empty(
+  format($$ select 1 from public.sprints where id = %L $$, :'survivor_id'),
+  'every refusal left the sprint where it was'
+);
+
+-- Someone else's sprint is not theirs to delete, whatever they ask for.
+select pg_temp.act_as(:'player_id');
+select throws_ok(
+  format($$ select public.delete_sprint(%L, 'delete') $$, :'survivor_id'),
+  42501, null,
+  'a sprint you do not own cannot be deleted'
+);
+
+select pg_temp.act_as_postgres();
+select isnt_empty(
+  format($$ select 1 from public.sprints where id = %L $$, :'survivor_id'),
+  'and it really is still there'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Clearing your issues in bulk cannot reach anyone else's
+--
+-- The sidebar's "clear voted" / "clear all" are plain filtered deletes, leaning
+-- on issues_delete_owner to scope them rather than naming owner_id as the
+-- authority. This is that assumption, asserted: the list you clear from shows
+-- issues you merely have a seat at, and a filter that matches them must still
+-- come away with nothing.
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+
+insert into public.issues (name, deck_name, deck_values)
+values ('Not yours to clear', 'Fibonacci', array['1','2','3']);
+
+select id as bulk_id, slug as bulk_slug
+  from public.issues where name = 'Not yours to clear'
+\gset
+
+select pg_temp.act_as(:'player_id');
+select public.join_issue(:'bulk_slug', 'Kojo');
+
+-- Closed, so it is a *voted* issue: it matches the narrower clear as well as
+-- the broader one, which makes it the row most at risk.
+select pg_temp.act_as(:'owner_id');
+select public.close_round(:'bulk_id');
+
+select pg_temp.act_as(:'player_id');
+
+select lives_ok(
+  $$ delete from public.issues where status = 'closed' $$,
+  'clearing voted issues succeeds even when someone else''s match the filter'
+);
+
+select lives_ok(
+  $$ delete from public.issues $$,
+  'clearing all issues succeeds without owning any of the ones in view'
+);
+
+select pg_temp.act_as_postgres();
+select isnt_empty(
+  format($$ select 1 from public.issues where id = %L $$, :'bulk_id'),
+  'a bulk clear took nothing owned by somebody else'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- An issue with votes can still be deleted
+--
+-- Deleting an issue cascades to its votes, which fires the BEFORE DELETE guard
+-- while the parent row is already gone. Without a branch for that, deleting
+-- any issue that had ever been voted in would fail — and so would deleting a
+-- user, which cascades to the issues they own.
 -- ---------------------------------------------------------------------------
 -- A participant deleting is not an error, it simply matches no rows — which
 -- is why the action checks the returned count rather than trusting a silent
 -- success.
 select pg_temp.act_as(:'player_id');
-delete from public.games where id = :'game_id'::uuid;
+delete from public.issues where id = :'issue_id'::uuid;
 
 select pg_temp.act_as_postgres();
 select isnt_empty(
-  format($$ select 1 from public.games where id = %L $$, :'game_id'),
-  'a participant''s delete matches no rows — the game survives'
+  format($$ select 1 from public.issues where id = %L $$, :'issue_id'),
+  'a participant''s delete matches no rows — the issue survives'
 );
 
 select pg_temp.act_as(:'owner_id');
 select lives_ok(
-  format($$ delete from public.games where id = %L $$, :'game_id'),
-  'a game that has votes can be deleted (cascade reaches the vote guard)'
+  format($$ delete from public.issues where id = %L $$, :'issue_id'),
+  'an issue that has votes can be deleted (cascade reaches the vote guard)'
 );
 
 select pg_temp.act_as_postgres();
 select is(
-  (select count(*)::int from public.votes where game_id = :'game_id'::uuid),
+  (select count(*)::int from public.votes where issue_id = :'issue_id'::uuid),
   0,
-  'deleting a game takes its cards with it'
+  'deleting an issue takes its cards with it'
+);
+
+-- Ranked by both of them, so this covers the cascade for a row that is not
+-- the deleting user's.
+select pg_temp.act_as(:'owner_id');
+delete from public.issues where id = :'editable_id'::uuid;
+
+select pg_temp.act_as_postgres();
+select is(
+  (select count(*)::int from public.issue_order
+    where issue_id = :'editable_id'::uuid),
+  0,
+  'deleting an issue takes everyone''s ordering of it with it'
 );
 
 
@@ -612,15 +1013,23 @@ select is(
 select pg_temp.act_as(:'player_id');
 
 select is(
-  private.can_use_game_topic('game:not-a-uuid'),
+  private.can_use_issue_topic('issue:not-a-uuid'),
   false,
   'a malformed channel topic returns false rather than raising 22P02'
 );
 
 select is(
-  private.can_use_game_topic('game:' || :'game_id'),
+  private.can_use_issue_topic('issue:' || :'issue_id'),
   false,
-  'someone who has left may not subscribe to that game''s channel'
+  'someone who has left may not subscribe to that issue''s channel'
+);
+
+-- The prefix is part of the contract: the client subscribes to `issue:<uuid>`,
+-- so a topic still spelled the old way must not authorise.
+select is(
+  private.can_use_issue_topic('game:' || :'issue_id'),
+  false,
+  'the old game: topic prefix no longer authorises anything'
 );
 
 select * from finish();

@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 }
 
 const planFeatures = {
-  free: ["Unlimited games", "Invite anyone by link", "Blind voting and timeboxes"],
+  free: ["Unlimited issues", "Invite anyone by link", "Blind voting and timeboxes"],
   pro: ["Everything in Free", "Round history", "Jira and Linear sync"],
 } as const
 
@@ -52,7 +52,7 @@ export default async function Page() {
               className="inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-muted-foreground underline-offset-4 transition-colors outline-none hover:text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/40"
             >
               <ArrowLeft className="size-4" aria-hidden="true" />
-              Back to games
+              Back to issues
             </Link>
             <h1 className="mt-3 text-2xl leading-tight font-semibold tracking-tight text-primary sm:text-3xl">
               Settings

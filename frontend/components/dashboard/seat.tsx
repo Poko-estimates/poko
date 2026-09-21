@@ -1,4 +1,4 @@
-import type { Seat as SeatModel } from "@/lib/games/model"
+import type { Seat as SeatModel } from "@/lib/issues/model"
 import { cn } from "@/lib/utils"
 
 /**

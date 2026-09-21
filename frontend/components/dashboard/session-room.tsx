@@ -15,9 +15,9 @@ import {
   reopenRound,
   retractVote,
   startRound,
-  type GameResult,
-} from "@/lib/games/actions"
-import type { RoomState } from "@/lib/games/model"
+  type IssueResult,
+} from "@/lib/issues/actions"
+import type { RoomState } from "@/lib/issues/model"
 import { formatSeconds } from "@/lib/rooms/clock"
 import { useCountdown } from "@/lib/rooms/use-countdown"
 import { useCoalescedRefresh } from "@/lib/rooms/use-coalesced-refresh"
@@ -60,7 +60,7 @@ function describeClose(payload: Record<string, unknown>): Burst | null {
   return null
 }
 
-/** The live estimation room for one game. */
+/** The live estimation room for one issue. */
 function SessionRoom({ room }: { room: RoomState }) {
   const toast = useToast()
   const [burst, setBurst] = useState<Burst | null>(null)
@@ -69,7 +69,7 @@ function SessionRoom({ room }: { room: RoomState }) {
   // the room again, so card values always come back through RLS.
   const refresh = useCoalescedRefresh()
   const online = useRoomChannel({
-    gameId: room.id,
+    issueId: room.id,
     userId: room.me?.userId ?? "",
     onEvent: (event) => {
       refresh()
@@ -145,7 +145,7 @@ function SessionRoom({ room }: { room: RoomState }) {
    * the clock swaps the button for a countdown, and a toast on top of that is
    * just noise.
    */
-  function run(action: () => Promise<GameResult>, success?: string) {
+  function run(action: () => Promise<IssueResult>, success?: string) {
     startTransition(async () => {
       const result = await action()
 

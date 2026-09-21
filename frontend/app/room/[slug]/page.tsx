@@ -8,11 +8,11 @@ import { UserMenu } from "@/components/site/user-menu"
 import { Container } from "@/components/site/container"
 import { buttonVariants } from "@/components/ui/button"
 import { initialsFor } from "@/lib/account/model"
-import { getRoomState } from "@/lib/games/queries"
+import { getRoomState } from "@/lib/issues/queries"
 import { createClient } from "@/lib/supabase/server"
 
 export const metadata: Metadata = {
-  title: "Join the game",
+  title: "Join the room",
   description: "Estimate with your team in a live Poko room.",
 }
 
@@ -25,7 +25,7 @@ export default async function Page({ params }: PageProps<"/room/[slug]">) {
   const userId = typeof claims?.sub === "string" ? claims.sub : null
   const isGuest = claims?.is_anonymous === true
 
-  // Null covers both "you aren't seated here" and "no such game": RLS makes
+  // Null covers both "you aren't seated here" and "no such issue": RLS makes
   // them indistinguishable on purpose, so neither the page nor a visitor can
   // use this route to discover which slugs exist.
   const room = userId ? await getRoomState(slug, userId) : null
@@ -43,7 +43,7 @@ export default async function Page({ params }: PageProps<"/room/[slug]">) {
               href="/signup"
               className={buttonVariants({ variant: "outline", size: "lg" })}
             >
-              Save your games
+              Save your issues
             </Link>
           ) : (
             <UserMenu

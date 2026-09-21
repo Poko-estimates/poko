@@ -28,7 +28,7 @@ function DangerZone({ email }: { email: string | null }) {
     <div className="flex flex-col divide-y divide-border">
       <DangerAction
         title="Deactivate account"
-        body="You'll be signed out and won't be able to sign back in. Your games and estimates are kept, and an administrator can restore access."
+        body="You'll be signed out and won't be able to sign back in. Your issues and estimates are kept, and an administrator can restore access."
         confirmTitle="Deactivate your account?"
         confirmBody="You will be signed out immediately and locked out of signing in. Restoring access needs an administrator — you can't undo this yourself."
         confirmLabel="Deactivate"
@@ -38,9 +38,9 @@ function DangerZone({ email }: { email: string | null }) {
 
       <DangerAction
         title="Delete account"
-        body="Removes your account, the games you created, and every card played in them. This affects everyone who was at those tables."
+        body="Removes your account, the issues you created, and every card played in them. This affects everyone who was at those tables."
         confirmTitle="Delete your account?"
-        confirmBody="Your account, the games you created and every card played in them will be removed for everyone at those tables. This cannot be undone."
+        confirmBody="Your account, the issues you created and every card played in them will be removed for everyone at those tables. This cannot be undone."
         confirmLabel="Delete everything"
         icon={<Trash2 className="size-4" aria-hidden="true" />}
         // Typing the address is friction on purpose: it's the difference

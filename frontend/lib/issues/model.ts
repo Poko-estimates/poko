@@ -1,25 +1,40 @@
 import type { Tables } from "@/lib/supabase/database.types"
 
-type GameRow = Tables<"games">
+type IssueRow = Tables<"issues">
 
 type Deck = {
   name: string
   values: string[]
 }
 
-const gameStatuses = ["voting", "closed"] as const
-type GameStatus = (typeof gameStatuses)[number]
+const issueStatuses = ["voting", "closed"] as const
+type IssueStatus = (typeof issueStatuses)[number]
 
-/** A game, as both the sidebar and the room need it. */
-type Game = {
+/**
+ * The sprint an issue is being refined in, or null when it has none.
+ *
+ * Optional throughout: the dialog's sprint field can be left empty, and the
+ * sidebar groups anything without one under "Uncategorized" rather than
+ * insisting every issue belong somewhere.
+ */
+type Sprint = {
+  id: string
+  name: string
+}
+
+/** An issue, as both the sidebar and the room need it. */
+type Issue = {
   id: string
   slug: string
   name: string
+  /** The tracker's identifier, e.g. "PK-231". Optional — not every team has one. */
+  key: string | null
+  sprint: Sprint | null
   deckName: string
-  status: GameStatus
+  status: IssueStatus
   estimate: string | null
   round: number
-  /** The sidebar only offers destructive actions on your own games. */
+  /** The sidebar only offers destructive actions on your own issues. */
   isOwner: boolean
   deck: Deck
   /** What the team is estimating, or null when the name says it all. */
@@ -29,8 +44,19 @@ type Game = {
 }
 
 
-type GameDraft = {
+type IssueDraft = {
   name: string
+  /** Optional. Blank is normalised to null rather than stored as "". */
+  key: string | null
+  /**
+   * The sprint by NAME, not by id.
+   *
+   * The dialog's sprint field creates on demand — type something that isn't in
+   * the list and it becomes a sprint — so a name is the only thing the form
+   * can honestly report. Resolving it to a row (finding the existing one, or
+   * inserting it) belongs on the server, where the uniqueness constraint is.
+   */
+  sprintName: string | null
   deck: Deck
   /** Optional. Blank is normalised to null rather than stored as "". */
   summary: string | null
@@ -57,7 +83,7 @@ type Seat = {
 }
 
 /** Everything the room renders from. */
-type RoomState = Game & {
+type RoomState = Issue & {
   seats: Seat[]
   /** The signed-in player's own seat. */
   me: Seat | null
@@ -70,21 +96,33 @@ type RoomState = Game & {
  * this code have diverged, which is a bug worth surfacing loudly instead of
  * quietly rendering the room as though voting were still open.
  */
-function toGameStatus(value: string): GameStatus {
-  if ((gameStatuses as readonly string[]).includes(value)) {
-    return value as GameStatus
+function toIssueStatus(value: string): IssueStatus {
+  if ((issueStatuses as readonly string[]).includes(value)) {
+    return value as IssueStatus
   }
 
-  throw new Error(`Unknown game status from the database: ${value}`)
+  throw new Error(`Unknown issue status from the database: ${value}`)
 }
 
-function toGame(row: GameRow, userId: string): Game {
+/**
+ * The shape a row arrives in when the query embeds its sprint. PostgREST
+ * returns an embedded to-one relation as an object or null, and null covers
+ * both "no sprint" and "a sprint you cannot read" — which are the same thing
+ * as far as rendering goes.
+ */
+type IssueRowWithSprint = IssueRow & {
+  sprints?: Sprint | null
+}
+
+function toIssue(row: IssueRowWithSprint, userId: string): Issue {
   return {
     id: row.id,
     slug: row.slug,
     name: row.name,
+    key: row.key,
+    sprint: row.sprints ?? null,
     deckName: row.deck_name,
-    status: toGameStatus(row.status),
+    status: toIssueStatus(row.status),
     estimate: row.estimate,
     round: row.round,
     isOwner: row.owner_id === userId,
@@ -105,13 +143,15 @@ function initialsFor(name: string) {
   return letters.toUpperCase()
 }
 
-export { gameStatuses, initialsFor, toGame, toGameStatus }
+export { initialsFor, issueStatuses, toIssue, toIssueStatus }
 export type {
   Deck,
-  Game,
-  GameDraft,
-  GameRow,
-  GameStatus,
+  Issue,
+  IssueDraft,
+  IssueRow,
+  IssueRowWithSprint,
+  IssueStatus,
   RoomState,
   Seat,
+  Sprint,
 }

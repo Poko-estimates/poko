@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client"
 const EMPTY: ReadonlySet<string> = new Set()
 
 /**
- * Subscribes to one game's private channel.
+ * Subscribes to one issue's private channel.
  *
  * Events carry no authoritative data — they are a nudge to re-read from the
  * server. That is deliberate: a broadcast payload is identical for every
@@ -22,11 +22,11 @@ const EMPTY: ReadonlySet<string> = new Set()
  * someone a player, and the auto-close count comes from the seat table.
  */
 function useRoomChannel({
-  gameId,
+  issueId,
   onEvent,
   userId,
 }: {
-  gameId: string
+  issueId: string
   /**
    * Called for every inbound event. Treat it as a nudge to re-read from the
    * server; the `type` is there so a caller can additionally react to a
@@ -55,7 +55,7 @@ function useRoomChannel({
     // TOKEN_REFRESHED / SIGNED_IN / INITIAL_SESSION. Calling it by hand puts
     // the client into manual-token mode, and the channel would then die
     // silently about an hour in, when the JWT first expires.
-    const channel = supabase.channel(`game:${gameId}`, {
+    const channel = supabase.channel(`issue:${issueId}`, {
       config: { private: true, presence: { key: userId } },
     })
 
@@ -74,16 +74,16 @@ function useRoomChannel({
 
         // A dropped socket loses messages silently, so reconcile on every
         // (re)connect rather than trusting the stream to be complete. Sent as
-        // game_updated because it is a plain "re-read", not a moment worth
+        // issue_updated because it is a plain "re-read", not a moment worth
         // announcing — a reconnect must not replay a celebration.
-        handleEvent({ type: "game_updated", payload: {} })
+        handleEvent({ type: "issue_updated", payload: {} })
         void channel.track({ userId })
       })
 
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [gameId, userId])
+  }, [issueId, userId])
 
   return online
 }
