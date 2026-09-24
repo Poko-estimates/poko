@@ -120,6 +120,7 @@ export type Database = {
           round: number
           round_duration_seconds: number | null
           round_ends_at: string | null
+          round_paused_at: string | null
           round_started_at: string
           slug: string
           sprint_id: string | null
@@ -143,6 +144,7 @@ export type Database = {
           round?: number
           round_duration_seconds?: number | null
           round_ends_at?: string | null
+          round_paused_at?: string | null
           round_started_at?: string
           slug?: string
           sprint_id?: string | null
@@ -166,6 +168,7 @@ export type Database = {
           round?: number
           round_duration_seconds?: number | null
           round_ends_at?: string | null
+          round_paused_at?: string | null
           round_started_at?: string
           slug?: string
           sprint_id?: string | null
@@ -283,6 +286,7 @@ export type Database = {
           round: number
           round_duration_seconds: number | null
           round_ends_at: string | null
+          round_paused_at: string | null
           round_started_at: string
           slug: string
           sprint_id: string | null
@@ -325,6 +329,40 @@ export type Database = {
           round: number
           round_duration_seconds: number | null
           round_ends_at: string | null
+          round_paused_at: string | null
+          round_started_at: string
+          slug: string
+          sprint_id: string | null
+          status: string
+          summary: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "issues"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      pause_round: {
+        Args: { p_issue_id: string }
+        Returns: {
+          allow_participant_reveal: boolean
+          auto_close: boolean
+          closed_at: string | null
+          closed_reason: string | null
+          created_at: string
+          deck_name: string
+          deck_values: string[]
+          estimate: string | null
+          id: string
+          key: string | null
+          name: string
+          owner_id: string
+          round: number
+          round_duration_seconds: number | null
+          round_ends_at: string | null
+          round_paused_at: string | null
           round_started_at: string
           slug: string
           sprint_id: string | null
@@ -358,6 +396,7 @@ export type Database = {
           round: number
           round_duration_seconds: number | null
           round_ends_at: string | null
+          round_paused_at: string | null
           round_started_at: string
           slug: string
           sprint_id: string | null
@@ -373,6 +412,72 @@ export type Database = {
         }
       }
       reorder_issues: { Args: { p_issue_ids: string[] }; Returns: undefined }
+      reset_round: {
+        Args: { p_issue_id: string }
+        Returns: {
+          allow_participant_reveal: boolean
+          auto_close: boolean
+          closed_at: string | null
+          closed_reason: string | null
+          created_at: string
+          deck_name: string
+          deck_values: string[]
+          estimate: string | null
+          id: string
+          key: string | null
+          name: string
+          owner_id: string
+          round: number
+          round_duration_seconds: number | null
+          round_ends_at: string | null
+          round_paused_at: string | null
+          round_started_at: string
+          slug: string
+          sprint_id: string | null
+          status: string
+          summary: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "issues"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      resume_round: {
+        Args: { p_issue_id: string }
+        Returns: {
+          allow_participant_reveal: boolean
+          auto_close: boolean
+          closed_at: string | null
+          closed_reason: string | null
+          created_at: string
+          deck_name: string
+          deck_values: string[]
+          estimate: string | null
+          id: string
+          key: string | null
+          name: string
+          owner_id: string
+          round: number
+          round_duration_seconds: number | null
+          round_ends_at: string | null
+          round_paused_at: string | null
+          round_started_at: string
+          slug: string
+          sprint_id: string | null
+          status: string
+          summary: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "issues"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_estimate: {
         Args: { p_estimate: string; p_issue_id: string }
         Returns: {
@@ -391,6 +496,7 @@ export type Database = {
           round: number
           round_duration_seconds: number | null
           round_ends_at: string | null
+          round_paused_at: string | null
           round_started_at: string
           slug: string
           sprint_id: string | null
@@ -406,6 +512,39 @@ export type Database = {
         }
       }
       start_round: {
+        Args: { p_issue_id: string; p_seconds: number }
+        Returns: {
+          allow_participant_reveal: boolean
+          auto_close: boolean
+          closed_at: string | null
+          closed_reason: string | null
+          created_at: string
+          deck_name: string
+          deck_values: string[]
+          estimate: string | null
+          id: string
+          key: string | null
+          name: string
+          owner_id: string
+          round: number
+          round_duration_seconds: number | null
+          round_ends_at: string | null
+          round_paused_at: string | null
+          round_started_at: string
+          slug: string
+          sprint_id: string | null
+          status: string
+          summary: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "issues"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      stop_round: {
         Args: { p_issue_id: string }
         Returns: {
           allow_participant_reveal: boolean
@@ -423,6 +562,7 @@ export type Database = {
           round: number
           round_duration_seconds: number | null
           round_ends_at: string | null
+          round_paused_at: string | null
           round_started_at: string
           slug: string
           sprint_id: string | null

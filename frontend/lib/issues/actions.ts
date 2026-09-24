@@ -11,6 +11,11 @@ import {
   minDeckValues,
 } from "@/lib/decks"
 import type { IssueDraft } from "@/lib/issues/model"
+import {
+  formatSeconds,
+  maxRoundSeconds,
+  minRoundSeconds,
+} from "@/lib/rooms/clock"
 import { createClient } from "@/lib/supabase/server"
 
 /**
@@ -49,7 +54,6 @@ export async function createIssue(
       summary,
       deck_name: deckName,
       deck_values: values,
-      round_duration_seconds: draft.timeboxSeconds,
     })
     .select("slug")
     .single()
@@ -249,7 +253,6 @@ export async function updateIssue(
       summary: fields.summary,
       deck_name: fields.deckName,
       deck_values: fields.values,
-      round_duration_seconds: draft.timeboxSeconds,
     })
     .eq("id", issueId)
     .select("slug")
@@ -463,16 +466,80 @@ export async function reorderIssues(
 }
 
 /**
- * Starts the round's clock.
+ * Starts the round's clock, for however long the facilitator asked for.
  *
- * Separate from creating the issue on purpose: a countdown that began when the
- * dialog closed would already be running before anyone had read the story or
- * followed the invite link.
+ * The length arrives here rather than having been chosen in the create dialog:
+ * how long a story is worth arguing about is only knowable with the story in
+ * front of you, and a number picked days earlier in a form is one nobody
+ * remembers agreeing to.
+ *
+ * The bounds are re-checked inside `start_round` — a server action is a public
+ * endpoint — and a clock that is already running is left alone, so this cannot
+ * be called again to buy the round more time.
  */
-export async function startRound(issueId: string): Promise<IssueResult> {
+export async function startRound(
+  issueId: string,
+  seconds: number
+): Promise<IssueResult> {
+  if (!Number.isInteger(seconds) || seconds < minRoundSeconds || seconds > maxRoundSeconds) {
+    return {
+      formError: `Pick a length between ${formatSeconds(minRoundSeconds)} and ${formatSeconds(maxRoundSeconds)}.`,
+    }
+  }
+
   const supabase = await createClient()
 
-  const { error } = await supabase.rpc("start_round", { p_issue_id: issueId })
+  const { error } = await supabase.rpc("start_round", {
+    p_issue_id: issueId,
+    p_seconds: seconds,
+  })
+  if (error) return { formError: describe(error) }
+
+  revalidateIssue()
+  return {}
+}
+
+/**
+ * Holds the clock without ending the round.
+ *
+ * While held, the deadline stops being meaningful: `poko_votes_guard` keeps
+ * accepting cards and `close_round` stops treating the round as expired, so a
+ * pause cannot become a back door to closing it.
+ */
+export async function pauseRound(issueId: string): Promise<IssueResult> {
+  return callClock("pause_round", issueId)
+}
+
+/** Gives back exactly the time the pause took, and no more. */
+export async function resumeRound(issueId: string): Promise<IssueResult> {
+  return callClock("resume_round", issueId)
+}
+
+/**
+ * Drops the clock and leaves voting open, which is the state a round is in
+ * before anyone times it. Not the same as closing the round.
+ */
+export async function stopRound(issueId: string): Promise<IssueResult> {
+  return callClock("stop_round", issueId)
+}
+
+/** Runs the same length again from now, from running, paused or stopped. */
+export async function resetRound(issueId: string): Promise<IssueResult> {
+  return callClock("reset_round", issueId)
+}
+
+/**
+ * The four clock controls differ only in which routine they call: the
+ * authority checks, the state validation and the broadcast all live in the
+ * database, so there is nothing else for them to do.
+ */
+async function callClock(
+  fn: "pause_round" | "resume_round" | "stop_round" | "reset_round",
+  issueId: string
+): Promise<IssueResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase.rpc(fn, { p_issue_id: issueId })
   if (error) return { formError: describe(error) }
 
   revalidateIssue()
@@ -680,8 +747,12 @@ function describe(error: { code?: string; hint?: string | null; message: string 
       return "You're not at this table."
     case "poko_not_owner":
       return "Only the person who created the issue can do that."
+    case "poko_clock_stopped":
+      return "There's no clock running to pause."
     case "poko_no_timebox":
-      return "This issue has no timebox to start."
+      return "Set a length before resetting the clock."
+    case "poko_bad_timebox":
+      return `Pick a length between ${formatSeconds(minRoundSeconds)} and ${formatSeconds(maxRoundSeconds)}.`
     case "poko_issue_closed":
       return "Reopen the round before editing this issue."
     case "poko_deck_locked":

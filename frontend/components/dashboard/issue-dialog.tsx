@@ -37,17 +37,6 @@ import { cn } from "@/lib/utils"
 
 const customDeckId = "custom"
 
-/**
- * Preset lengths rather than a seconds input: no unit ambiguity, no validation
- * surface, and it matches how the deck is already chosen.
- */
-const timeboxOptions = [
-  { id: "60", label: "1 min", seconds: 60 },
-  { id: "120", label: "2 min", seconds: 120 },
-  { id: "300", label: "5 min", seconds: 300 },
-  { id: "none", label: "No limit", seconds: null },
-] as const
-
 type IssueDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -73,14 +62,6 @@ function deckIdFor(issue: Issue | undefined) {
   )
 
   return preset?.id ?? customDeckId
-}
-
-function timeboxIdFor(issue: Issue | undefined) {
-  const match = timeboxOptions.find(
-    (option) => option.seconds === (issue?.timeboxSeconds ?? null)
-  )
-
-  return match?.id ?? "none"
 }
 
 /**
@@ -136,7 +117,6 @@ function IssueForm({
 }) {
   const editing = issue !== undefined
   const deckLabelId = useId()
-  const timeboxLabelId = useId()
 
   const toast = useToast()
   const [pending, startTransition] = useTransition()
@@ -148,7 +128,6 @@ function IssueForm({
   const [sprintName, setSprintName] = useState(issue?.sprint?.name ?? "")
   const [summary, setSummary] = useState(issue?.summary ?? "")
   const [deckId, setDeckId] = useState<string>(() => deckIdFor(issue))
-  const [timeboxId, setTimeboxId] = useState<string>(() => timeboxIdFor(issue))
   const [customName, setCustomName] = useState(
     deckIdFor(issue) === customDeckId ? (issue?.deck.name ?? "") : ""
   )
@@ -161,7 +140,6 @@ function IssueForm({
 
   function handleSubmit() {
     const preset = deckPresets.find((option) => option.id === deckId)
-    const timebox = timeboxOptions.find((option) => option.id === timeboxId)
 
     setFormError(null)
 
@@ -173,7 +151,6 @@ function IssueForm({
       deck: preset
         ? { name: preset.name, values: preset.values }
         : { name: customName.trim(), values: customCards },
-      timeboxSeconds: timebox?.seconds ?? null,
     }
 
     // The two modes are branched rather than sharing one result, because only
@@ -217,7 +194,7 @@ function IssueForm({
         <DialogTitle>{editing ? "Edit issue" : "Create an issue"}</DialogTitle>
         <DialogDescription>
           {editing
-            ? "Change the key, title, sprint, summary, deck or timebox."
+            ? "Change the key, title, sprint, summary or deck."
             : "Name what you're estimating and choose the cards your team will vote with."}
         </DialogDescription>
       </DialogHeader>
@@ -301,44 +278,6 @@ function IssueForm({
               : "Skip it when the name says enough."}
           </FieldDescription>
         </Field>
-
-        <div className="flex flex-col gap-2.5">
-          <div>
-            <p
-              id={timeboxLabelId}
-              className="text-sm font-medium text-primary"
-            >
-              Timebox
-            </p>
-          </div>
-
-          <RadioGroup
-            aria-labelledby={timeboxLabelId}
-            value={timeboxId}
-            onValueChange={(value) => setTimeboxId(String(value))}
-            className="flex flex-wrap gap-2"
-          >
-            {timeboxOptions.map((option) => (
-              <label
-                key={option.id}
-                className={cn(
-                  "flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-colors",
-                  timeboxId === option.id
-                    ? "border-secondary bg-secondary/10 font-medium text-primary"
-                    : "border-border bg-card text-muted-foreground hover:border-secondary/50"
-                )}
-              >
-                <Radio.Root
-                  value={option.id}
-                  className="flex size-4 shrink-0 items-center justify-center rounded-full border border-input bg-card transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 data-checked:border-secondary data-checked:bg-secondary"
-                >
-                  <Radio.Indicator className="size-1.5 rounded-full bg-primary data-unchecked:hidden" />
-                </Radio.Root>
-                {option.label}
-              </label>
-            ))}
-          </RadioGroup>
-        </div>
 
         <div className="flex flex-col gap-3">
           <div>

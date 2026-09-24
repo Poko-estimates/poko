@@ -197,8 +197,9 @@ begin
     'Fibonacci', v_fibonacci, now() - interval '11 minutes'
   );
 
-  -- A timebox that has not been started: round_ends_at stays null until
-  -- start_round() is called, which is the state the Start button renders from.
+  -- Carries a length from a previous round without a clock running, which is
+  -- the state the room prefills its timer input from. round_ends_at stays
+  -- null until start_round() is called.
   insert into public.issues
     (owner_id, sprint_id, key, name, summary, deck_name, deck_values,
      round_duration_seconds, created_at)

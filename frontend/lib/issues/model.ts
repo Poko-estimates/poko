@@ -39,8 +39,24 @@ type Issue = {
   deck: Deck
   /** What the team is estimating, or null when the name says it all. */
   summary: string | null
+  /**
+   * The length of the round, in seconds, or null if one has never been run.
+   *
+   * Set by `start_round` rather than chosen when the issue is created, so this
+   * is a record of the LAST length used — which is what the room's timer input
+   * prefills from.
+   */
   timeboxSeconds: number | null
   roundEndsAt: string | null
+  /**
+   * When the clock was held, or null when it is running (or stopped).
+   *
+   * While this is set, `roundEndsAt` is deliberately stale — the remaining
+   * time is `roundEndsAt - roundPausedAt`, and resuming pushes the deadline
+   * forward by however long the pause lasted. Anything asking "has the
+   * deadline passed?" has to check this first.
+   */
+  roundPausedAt: string | null
 }
 
 
@@ -60,7 +76,6 @@ type IssueDraft = {
   deck: Deck
   /** Optional. Blank is normalised to null rather than stored as "". */
   summary: string | null
-  timeboxSeconds: number | null
 }
 
 /**
@@ -130,6 +145,7 @@ function toIssue(row: IssueRowWithSprint, userId: string): Issue {
     summary: row.summary,
     timeboxSeconds: row.round_duration_seconds,
     roundEndsAt: row.round_ends_at,
+    roundPausedAt: row.round_paused_at,
   }
 }
 

@@ -23,7 +23,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(104);
+select plan(131);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -388,8 +388,8 @@ select lives_ok(
 -- reusing it here would test the wrong rule.
 select pg_temp.act_as(:'owner_id');
 
-insert into public.issues (name, deck_name, deck_values, round_duration_seconds)
-values ('Open and editable', 'Fibonacci', array['1','2','3'], 60);
+insert into public.issues (name, deck_name, deck_values)
+values ('Open and editable', 'Fibonacci', array['1','2','3']);
 
 select id as editable_id, slug as editable_slug
   from public.issues where name = 'Open and editable'
@@ -416,19 +416,12 @@ select throws_ok(
   'the deck cannot be changed once cards are down'
 );
 
--- The timebox is still fair game: it only affects the next round's clock.
-select lives_ok(
-  format($$ update public.issues set round_duration_seconds = 300
-             where id = %L $$, :'editable_id'),
-  'the timebox can be changed mid-round'
-);
-
 -- A closed round's details are frozen; reopening is the way back to editing.
 -- Uses its own issue so the round-1 narrative above is undisturbed.
 select pg_temp.act_as(:'owner_id');
 
-insert into public.issues (name, deck_name, deck_values, round_duration_seconds)
-values ('Closed and frozen', 'Fibonacci', array['1','2','3'], 60);
+insert into public.issues (name, deck_name, deck_values)
+values ('Closed and frozen', 'Fibonacci', array['1','2','3']);
 
 select id as frozen_id from public.issues where name = 'Closed and frozen'
 \gset
@@ -523,52 +516,123 @@ select lives_ok(
 
 
 -- ---------------------------------------------------------------------------
--- The clock is started deliberately, not by creating the issue
+-- The round's length is chosen when it starts
+--
+-- The duration used to be picked in the create dialog and stored on the issue.
+-- It is now an argument to start_round(), and no longer writable by a client
+-- at all — so these cover both halves: that the length arrives with the call,
+-- and that it cannot arrive any other way.
 -- ---------------------------------------------------------------------------
 select pg_temp.act_as(:'owner_id');
 
-insert into public.issues (name, deck_name, deck_values, round_duration_seconds)
-values ('Timed issue', 'Fibonacci', array['1','2','3'], 60);
+insert into public.issues (name, deck_name, deck_values)
+values ('Timed issue', 'Fibonacci', array['1','2','3']);
 
 select id as timed_id from public.issues where name = 'Timed issue'
 \gset
 
 select is(
-  (select round_ends_at from public.issues where id = :'timed_id'::uuid),
+  (select round_duration_seconds from public.issues where id = :'timed_id'::uuid),
   null,
-  'creating a timed issue does not start its clock'
+  'a new issue carries no round length'
+);
+
+-- The duration is round machinery now, like status and round_ends_at: absent
+-- from every grant, so there is no statement a client can send that sets it.
+select throws_ok(
+  format($$ update public.issues set round_duration_seconds = 120 where id = %L $$,
+         :'timed_id'),
+  42501, null,
+  'a client cannot write the round length directly — no column grant exists'
 );
 
 select throws_ok(
-  format($$ select public.start_round(%L) $$, :'issue_id'),
+  $$ insert into public.issues (name, deck_name, deck_values, round_duration_seconds)
+     values ('Sneaky timer', 'Fibonacci', array['1','2'], 60) $$,
+  42501, null,
+  'nor supply one when creating an issue'
+);
+
+-- A length outside the CHECK's range is refused by the function, so the caller
+-- gets a branchable hint rather than a constraint violation.
+select throws_ok(
+  format($$ select public.start_round(%L, 5) $$, :'timed_id'),
   'P0001', null,
-  'an issue with no timebox has no clock to start'
+  'a round shorter than ten seconds is refused'
+);
+
+select throws_ok(
+  format($$ select public.start_round(%L, 4000) $$, :'timed_id'),
+  'P0001', null,
+  'a round longer than an hour is refused'
+);
+
+select throws_ok(
+  format($$ select public.start_round(%L, null) $$, :'timed_id'),
+  'P0001', null,
+  'and so is no length at all'
+);
+
+select is(
+  (select round_ends_at from public.issues where id = :'timed_id'::uuid),
+  null,
+  'every refused start left the clock stopped'
 );
 
 select pg_temp.act_as(:'player_id');
 select throws_ok(
-  format($$ select public.start_round(%L) $$, :'timed_id'),
+  format($$ select public.start_round(%L, 60) $$, :'timed_id'),
   42501, null,
   'only the owner can start the clock'
 );
 
 select pg_temp.act_as(:'owner_id');
-select public.start_round(:'timed_id');
+select public.start_round(:'timed_id', 90);
+
+select is(
+  (select round_duration_seconds from public.issues where id = :'timed_id'::uuid),
+  90,
+  'start_round records the length it was given'
+);
 
 select isnt(
   (select round_ends_at from public.issues where id = :'timed_id'::uuid),
   null,
-  'start_round sets the deadline'
+  'and sets the deadline from it'
 );
 
--- A second press must not quietly buy the round more time.
-select public.start_round(:'timed_id');
+-- A second press must not quietly buy the round more time, and neither must a
+-- second press asking for MORE time.
+select public.start_round(:'timed_id', 3600);
+
+select is(
+  (select round_duration_seconds from public.issues where id = :'timed_id'::uuid),
+  90,
+  'restarting a running clock cannot lengthen the round'
+);
 
 select is(
   (select round_ends_at from public.issues where id = :'timed_id'::uuid),
   (select round_started_at + make_interval(secs => round_duration_seconds)
      from public.issues where id = :'timed_id'::uuid),
   'starting an already-running clock leaves the deadline where it was'
+);
+
+-- Reopening keeps the length, which is what lets the room offer "same again"
+-- as the default next round.
+select public.close_round(:'timed_id');
+select public.reopen_round(:'timed_id');
+
+select is(
+  (select round_duration_seconds from public.issues where id = :'timed_id'::uuid),
+  90,
+  'reopening remembers the last length used'
+);
+
+select is(
+  (select round_ends_at from public.issues where id = :'timed_id'::uuid),
+  null,
+  'but leaves the clock stopped until someone starts it again'
 );
 
 
@@ -639,6 +703,191 @@ select is(
   (select count(*)::int from public.issue_order),
   2,
   'a participant reordering their own list leaves the owner''s order alone'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Holding the clock: pause, resume, stop and reset
+--
+-- Pausing is stored as the INSTANT of the pause, so while it is held
+-- `round_ends_at` sits in the past. Everything that reads "has the deadline
+-- passed?" therefore has to ask "and is it not paused?" first — and the two
+-- places that do are the whole risk in this feature, so both are asserted
+-- directly rather than inferred from the happy path.
+-- ---------------------------------------------------------------------------
+select pg_temp.act_as(:'owner_id');
+
+insert into public.issues (name, deck_name, deck_values)
+values ('Clock controls', 'Fibonacci', array['1','2','3']);
+
+select id as clock_id, slug as clock_slug
+  from public.issues where name = 'Clock controls'
+\gset
+
+select pg_temp.act_as(:'player_id');
+select public.join_issue(:'clock_slug', 'Kojo');
+
+select pg_temp.act_as(:'owner_id');
+
+-- Nothing to hold before a clock is running.
+select throws_ok(
+  format($$ select public.pause_round(%L) $$, :'clock_id'),
+  'P0001', null,
+  'a round with no clock running cannot be paused'
+);
+
+-- Nor anything to go back to before a length has been set.
+select throws_ok(
+  format($$ select public.reset_round(%L) $$, :'clock_id'),
+  'P0001', null,
+  'a round that was never timed has no length to reset to'
+);
+
+select public.start_round(:'clock_id', 600);
+select public.pause_round(:'clock_id');
+
+select isnt(
+  (select round_paused_at from public.issues where id = :'clock_id'::uuid),
+  null,
+  'pausing records the instant the clock was held'
+);
+
+-- A second press must not re-stamp the instant, which would silently hand the
+-- round the length of the first pause as extra time.
+select public.pause_round(:'clock_id');
+
+select is(
+  (select count(distinct round_paused_at)::int from public.issues
+    where id = :'clock_id'::uuid),
+  1,
+  'pausing twice does not move the pause instant'
+);
+
+-- THE assertion. A paused deadline is stale by design, so without the pause
+-- clause in poko_votes_guard this vote is refused as expired.
+select pg_temp.act_as(:'player_id');
+select lives_ok(
+  format($$ insert into public.votes (issue_id, round, value)
+            values (%L, 1, '2') $$, :'clock_id'),
+  'voting stays open while the clock is paused'
+);
+
+-- The other one. `close_round` lets ANY participant close an expired round,
+-- because then the clock is the authority — but a paused clock is not that
+-- fact, and treating it as one would hand every guest the power to end a round
+-- the facilitator deliberately held.
+select throws_ok(
+  format($$ select public.close_round(%L) $$, :'clock_id'),
+  42501, null,
+  'a participant cannot close a paused round on a false expiry'
+);
+
+-- Resuming gives back exactly the time that was held, and no more: the
+-- deadline moves by the length of the pause.
+select pg_temp.act_as_postgres();
+select round_ends_at as paused_deadline from public.issues
+  where id = :'clock_id'::uuid
+\gset
+
+select pg_temp.act_as(:'owner_id');
+select public.resume_round(:'clock_id');
+
+select is(
+  (select round_paused_at from public.issues where id = :'clock_id'::uuid),
+  null,
+  'resuming lets go of the pause'
+);
+
+select ok(
+  (select round_ends_at from public.issues where id = :'clock_id'::uuid)
+    >= :'paused_deadline'::timestamptz,
+  'and pushes the deadline forward by however long the pause lasted'
+);
+
+-- Stopping drops the clock without ending the round, and keeps the length so
+-- the room can prefill it again.
+select public.stop_round(:'clock_id');
+
+select is(
+  (select round_ends_at from public.issues where id = :'clock_id'::uuid),
+  null,
+  'stopping the clock clears the deadline'
+);
+
+select is(
+  (select status from public.issues where id = :'clock_id'::uuid),
+  'voting',
+  'but leaves the round open — stopping the clock is not closing the round'
+);
+
+select is(
+  (select round_duration_seconds from public.issues where id = :'clock_id'::uuid),
+  600,
+  'and remembers the length for next time'
+);
+
+-- Reset works from a stopped clock as well as a running one: the answer is
+-- always the full length, starting now.
+select public.reset_round(:'clock_id');
+
+select isnt(
+  (select round_ends_at from public.issues where id = :'clock_id'::uuid),
+  null,
+  'resetting starts the full length again from now'
+);
+
+select is(
+  (select round_ends_at from public.issues where id = :'clock_id'::uuid),
+  (select round_started_at + make_interval(secs => round_duration_seconds)
+     from public.issues where id = :'clock_id'::uuid),
+  'and the new deadline is the whole round, not what was left of it'
+);
+
+-- Every control is a facilitation act, so every one of them is owner-only.
+select pg_temp.act_as(:'player_id');
+
+select throws_ok(
+  format($$ select public.pause_round(%L) $$, :'clock_id'),
+  42501, null,
+  'a participant cannot pause the clock'
+);
+
+select throws_ok(
+  format($$ select public.stop_round(%L) $$, :'clock_id'),
+  42501, null,
+  'nor stop it'
+);
+
+select throws_ok(
+  format($$ select public.reset_round(%L) $$, :'clock_id'),
+  42501, null,
+  'nor reset it'
+);
+
+select throws_ok(
+  format($$ select public.resume_round(%L) $$, :'clock_id'),
+  42501, null,
+  'nor resume it'
+);
+
+-- The clock is round machinery, like status and the deadline itself.
+select throws_ok(
+  format($$ update public.issues set round_paused_at = null where id = %L $$,
+         :'clock_id'),
+  42501, null,
+  'and no client can write the pause instant directly'
+);
+
+-- Reopening starts a fresh pass, so it must let go of the clock too.
+select pg_temp.act_as(:'owner_id');
+select public.pause_round(:'clock_id');
+select public.close_round(:'clock_id');
+select public.reopen_round(:'clock_id');
+
+select is(
+  (select round_paused_at from public.issues where id = :'clock_id'::uuid),
+  null,
+  'reopening carries no pause into the new round'
 );
 
 
