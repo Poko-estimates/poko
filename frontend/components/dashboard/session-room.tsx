@@ -1,9 +1,11 @@
 "use client"
 
 import { startTransition, useOptimistic, useState } from "react"
-import { Lock, Play, RotateCcw, Timer, Users } from "lucide-react"
+import { Lock, RotateCcw, Users } from "lucide-react"
 
 import { InviteLink } from "@/components/dashboard/invite-link"
+import { RoundClockControls } from "@/components/dashboard/round-clock-controls"
+import { RoundTimerSetup } from "@/components/dashboard/round-timer-setup"
 import { RoundOverNotice } from "@/components/dashboard/round-over-notice"
 import { RoundTimer } from "@/components/dashboard/round-timer"
 import { Seat } from "@/components/dashboard/seat"
@@ -14,11 +16,9 @@ import {
   closeRound,
   reopenRound,
   retractVote,
-  startRound,
   type IssueResult,
 } from "@/lib/issues/actions"
 import type { RoomState } from "@/lib/issues/model"
-import { formatSeconds } from "@/lib/rooms/clock"
 import { useCountdown } from "@/lib/rooms/use-countdown"
 import { useCoalescedRefresh } from "@/lib/rooms/use-coalesced-refresh"
 import { useRoomChannel } from "@/lib/rooms/use-room-channel"
@@ -99,9 +99,16 @@ function SessionRoom({ room }: { room: RoomState }) {
   // at all. The timer chip keeps its own subscription so the 1Hz label change
   // doesn't redraw the room.
   const { remaining } = useCountdown(
-    !closed && room.roundEndsAt ? Date.parse(room.roundEndsAt) : null
+    !closed && room.roundEndsAt ? Date.parse(room.roundEndsAt) : null,
+    room.roundPausedAt ? Date.parse(room.roundPausedAt) : null
   )
-  const lastCall = remaining !== null && remaining > 0 && remaining <= 5
+  // Nobody is chased while the clock is held: the red ring means "seconds
+  // left", and a paused round has as long as the facilitator wants.
+  const lastCall =
+    room.roundPausedAt === null &&
+    remaining !== null &&
+    remaining > 0 &&
+    remaining <= 5
 
   function play(value: string | null) {
     startTransition(async () => {
@@ -217,31 +224,32 @@ function SessionRoom({ room }: { room: RoomState }) {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* A timebox can exist without having been started. The owner gets
-                the button; everyone else sees how long it will be, so the
-                round's shape isn't a surprise when it begins. */}
+            {/* A round is untimed until somebody times it. The owner sets the
+                length here, with the story in front of them; everyone else
+                sees nothing until a countdown is actually running, because
+                "no timer yet" is not a state anyone else can act on. */}
             {!closed &&
-              room.timeboxSeconds !== null &&
               (room.roundEndsAt ? (
-                <RoundTimer
-                  deadline={room.roundEndsAt}
-                  onExpire={closeOnExpiry}
-                />
-              ) : room.isOwner ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  onClick={() => run(() => startRound(room.id))}
-                >
-                  <Play className="size-4" aria-hidden="true" />
-                  Start {formatSeconds(room.timeboxSeconds)} timer
-                </Button>
+                <>
+                  <RoundTimer
+                    deadline={room.roundEndsAt}
+                    pausedAt={room.roundPausedAt}
+                    onExpire={closeOnExpiry}
+                  />
+                  {room.isOwner && (
+                    <RoundClockControls
+                      issueId={room.id}
+                      paused={room.roundPausedAt !== null}
+                    />
+                  )}
+                </>
               ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-xs font-medium text-muted-foreground">
-                  <Timer className="size-3.5" aria-hidden="true" />
-                  {formatSeconds(room.timeboxSeconds)} · not started
-                </span>
+                room.isOwner && (
+                  <RoundTimerSetup
+                    issueId={room.id}
+                    lastSeconds={room.timeboxSeconds}
+                  />
+                )
               ))}
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-primary">
               <Users className="size-3.5 text-secondary" aria-hidden="true" />

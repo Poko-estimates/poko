@@ -46,6 +46,19 @@ const getSecondsSnapshot = () => seconds
 /** There is no clock on the server — render a placeholder and let the browser fill it in. */
 const getServerSecondsSnapshot = (): number | null => null
 
+/**
+ * How long a round may be asked to run for, mirroring the
+ * `issues_duration_range` CHECK and the bounds `start_round` enforces.
+ *
+ * Below ten seconds nobody can read the story; an hour is longer than a single
+ * estimate is worth arguing about.
+ */
+const minRoundSeconds = 10
+const maxRoundSeconds = 3600
+
+/** What the room prefills when an issue has never had a round timed. */
+const defaultRoundSeconds = 120
+
 /** 90 -> "1:30", 5 -> "0:05". Shared so a countdown and a duration agree. */
 function formatSeconds(seconds: number) {
   const minutes = Math.floor(seconds / 60)
@@ -54,7 +67,10 @@ function formatSeconds(seconds: number) {
 }
 
 export {
+  defaultRoundSeconds,
   formatSeconds,
+  maxRoundSeconds,
+  minRoundSeconds,
   getSecondsSnapshot,
   getServerSecondsSnapshot,
   subscribeToSeconds,
