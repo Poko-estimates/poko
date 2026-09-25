@@ -69,6 +69,14 @@ backend → `pnpm db reset` (applies every migration from scratch) and `pnpm db 
 - Interactive elements carry the accessible name/role (`role="timer"`, `aria-label`)
   the existing components model.
 
+## Reviewing
+
+Use the `poko-review` skill (`.claude/skills/poko-review/`) for any review of
+this code — a diff, a PR, a migration, or a full sweep. It covers the database
+boundary, where mistakes fail silently: the revoke-then-grant rule, RLS and
+security-definer obligations, the blind-vote guarantees, and session handling.
+Everything else is ordinary review against the rules above.
+
 ## Comments
 
 This codebase comments the *reasoning*, not the mechanics: the race the retry exists
