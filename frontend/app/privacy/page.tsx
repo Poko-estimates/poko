@@ -334,14 +334,18 @@ const sections: readonly LegalSection[] = [
           </li>
           <li>
             <Term>Guest sessions</Term> hold only a display name and a seat.
-            They go when the issue they belong to is deleted.
+            Deleting the issue removes the seat, and a scheduled job then
+            deletes the session itself — display name included — usually within
+            the hour. A guest still seated at a live issue is kept, because the
+            room has to be able to show who is at the table.
           </li>
           <li>
             <Term>Contact messages</Term> are kept for up to 24 months so we can
-            follow up and see patterns in what people report. Delete your
-            account and any message you sent stays, but is detached from it: the
-            link to your account is erased rather than the feedback being
-            silently retracted.
+            follow up and see patterns in what people report, and a scheduled
+            job deletes them at that point — the limit runs itself rather than
+            waiting for someone to remember it. Delete your account and any
+            message you sent stays, but is detached from it: the link to your
+            account is erased rather than the feedback being silently retracted.
           </li>
           <li>
             <Term>Server logs</Term> are kept for a short period by our
