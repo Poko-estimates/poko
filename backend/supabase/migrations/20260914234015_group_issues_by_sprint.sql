@@ -1,30 +1,18 @@
--- Sprints, and a ticket key on the issue.
+-- Sprints, and a ticket key on the issue, so a session's estimates read as one
+-- list rather than a pile of rooms.
 --
--- Poko stops being "a room per estimate" and becomes an agile estimation tool:
--- issues carry the key their tracker knows them by (PK-231) and sit in the
--- sprint being refined, so a session's worth of estimates reads as one list.
+-- sprint_id IS NULLABLE, so this rewrites no existing rows and anything
+-- unfiled shows under "Uncategorized".
 --
--- Three deliberate shapes here:
+-- A SPRINT IS ONE PERSON'S: a trigger refuses to attach an issue to someone
+-- else's sprint, or naming a stranger's sprint id would file your issue on
+-- their board. Participants can still read the sprint of an issue they sit at.
 --
---   1. sprint_id IS NULLABLE. An issue does not need a sprint — the dialog's
---      sprint field is optional, and anything without one shows in an
---      "Uncategorized" group. That also means this migration rewrites no
---      existing rows: every issue created before today simply has no sprint.
+-- ONE SPRINT PER NAME, PER OWNER, case-insensitively — the field creates on
+-- demand, so "Sprint 24" typed twice must not fork into two groups.
 --
---   2. A SPRINT IS ONE PERSON'S. It hangs off owner_id like an issue does, and
---      a trigger refuses to attach an issue to a sprint somebody else owns —
---      otherwise naming a stranger's sprint id would file your issue inside
---      their board. Participants can still READ the sprint of an issue they
---      are seated at, which is all the sidebar needs to group it.
---
---   3. ONE SPRINT PER NAME, PER OWNER, case-insensitively. The sprint field
---      creates on demand — type a name that isn't in the list and you get it —
---      so "Sprint 24" typed twice, or raced by a double submit, has to land on
---      the same row rather than quietly forking into two groups.
---
--- Deleting a sprint sets its issues' sprint_id to null rather than deleting
--- them: losing a sprint should cost you a grouping, never an estimate. They
--- reappear under Uncategorized.
+-- Deleting a sprint nulls its issues rather than deleting them: losing a
+-- sprint should cost a grouping, never an estimate.
 
 
 -- ---------------------------------------------------------------------------
@@ -53,14 +41,9 @@ create unique index sprints_owner_id_name_key
   on public.sprints (owner_id, lower(name));
 
 
--- ---------------------------------------------------------------------------
--- 2. issues gain a key and a sprint.
---
--- Both nullable with no default, so neither needs a table rewrite and no
--- existing row changes meaning. `key` is the tracker's identifier, not a
--- database key, and is deliberately NOT unique — the same ticket legitimately
--- comes back to be re-estimated in a later sprint.
--- ---------------------------------------------------------------------------
+-- 2. issues gain a key and a sprint. Both nullable with no default, so no
+-- table rewrite. `key` is the tracker's id, deliberately NOT unique — the same
+-- ticket legitimately returns to be re-estimated in a later sprint.
 alter table public.issues
   add column key text,
   add column sprint_id uuid references public.sprints (id) on delete set null;
@@ -80,18 +63,9 @@ grant insert (key, sprint_id) on public.issues to authenticated;
 grant update (key, sprint_id) on public.issues to authenticated;
 
 
--- ---------------------------------------------------------------------------
--- 3. Visibility.
---
--- Security definer for the same reason as the other helpers: it reads
--- issue_participants, and a policy that did so inline would recurse. Its own
--- auth.uid() check means no argument makes it answer a question about someone
--- else's board.
---
--- It covers ONLY the shared case — "an issue in this sprint has me seated at
--- it". Ownership is checked inline in the policy instead, and that split is
--- load-bearing rather than tidy. See the policy below.
--- ---------------------------------------------------------------------------
+-- 3. Visibility. Security definer because it reads issue_participants and an
+-- inline policy would recurse. Covers ONLY the shared case; ownership is
+-- checked inline in the policy, and that split is load-bearing — see below.
 create function private.has_sprint_seat(p_sprint_id uuid)
 returns boolean
 language sql
@@ -113,18 +87,11 @@ grant execute on function private.has_sprint_seat(uuid) to authenticated;
 
 alter table public.sprints enable row level security;
 
--- Yours, plus any sprint holding an issue you have a seat at — so the sidebar
--- can put a heading above someone else's issue you are estimating.
---
--- `owner_id = auth.uid()` MUST come first, as a plain column comparison, and
--- must not be folded into the helper. A SELECT policy also gates the RETURNING
--- clause of an INSERT, and a STABLE function reads the snapshot from the start
--- of the statement — which does not contain the row being inserted. Behind the
--- helper alone, creating a sprint and asking for it back (what PostgREST does
--- on every insert) failed with "new row violates row-level security policy".
--- Short-circuiting on the column keeps the common case from ever calling it.
--- This mirrors issues_select_participants, which is why that one never had the
--- problem.
+-- Yours, plus any sprint holding an issue you sit at, so the sidebar can head
+-- someone else's issue. `owner_id = auth.uid()` MUST stay first and inline: a
+-- SELECT policy also gates INSERT ... RETURNING, and a STABLE function reads
+-- the pre-statement snapshot, which lacks the new row — behind the helper
+-- alone, creating a sprint failed with "new row violates row-level security".
 create policy sprints_select_visible on public.sprints
 for select to authenticated
 using (
@@ -162,14 +129,9 @@ grant update (name) on public.sprints to authenticated;
 grant delete        on public.sprints to authenticated;
 
 
--- ---------------------------------------------------------------------------
--- 4. An issue may only sit in a sprint its own owner owns.
---
--- Enforced in the triggers rather than the server action so it holds however
--- the write arrives, including a direct PATCH from the browser. RLS cannot
--- express it: the issues policies check who is writing, not whether the
--- sprint_id being written points somewhere the writer is entitled to file it.
--- ---------------------------------------------------------------------------
+-- 4. An issue may only sit in a sprint its own owner owns. In the trigger, not
+-- the action, so it holds however the write arrives. RLS cannot express it:
+-- the policies check who writes, not where sprint_id points.
 create function private.poko_issue_sprint_is_owned(p_sprint_id uuid,
                                                    p_owner_id uuid)
 returns boolean
@@ -226,17 +188,10 @@ begin
 end;
 $$;
 
--- A closed issue is a record of what the team decided, so its details stop
--- being editable: reopen the round first, which is a visible act everyone at
--- the table sees. `key` joins that set — it names the ticket the estimate
--- belongs to — but `sprint_id` deliberately does NOT: filing a settled
--- estimate under the right sprint is housekeeping, and should not require
--- reopening a round to do it.
---
--- Only the *editable* columns are frozen. The round transitions all run
--- through this same trigger and none of them touch those columns, so they pass
--- straight through — a blanket "no updates while closed" would mean you could
--- never reopen anything.
+-- A closed issue freezes its editable details — reopen first. `key` joins that
+-- set; `sprint_id` deliberately does NOT, since filing a settled estimate is
+-- housekeeping. Only EDITABLE columns freeze: a blanket rule would block
+-- reopening itself.
 create or replace function private.poko_issues_before_update()
 returns trigger
 language plpgsql

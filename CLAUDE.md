@@ -83,6 +83,11 @@ This codebase comments the *reasoning*, not the mechanics: the race the retry ex
 for, why a column is derived rather than stored, what breaks if the check is removed.
 Match that. Don't narrate what the line already says.
 
+**Keep them to two lines.** Three or four only when a genuine trap needs it — a
+migration header, a non-obvious security boundary. If it takes a paragraph, the
+explanation belongs in the PR description or a doc, not above the line. Comments
+should stay a minority of any file; roughly 30% is this codebase's norm.
+
 ## Git
 
 Two long-lived branches: `dev` is staging, `main` is production.

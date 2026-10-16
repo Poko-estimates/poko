@@ -1,33 +1,17 @@
--- "Game" becomes "issue", and an issue list you can put in your own order.
+-- "Game" becomes "issue", plus a per-user issue order. One migration because
+-- the second is written in terms of the first.
 --
--- Two changes, in one migration because the second is written in terms of the
--- first:
+-- issue_order is keyed per USER, not per issue: your list includes issues you
+-- only have a seat at, so one shared position column would let their owner
+-- rearrange your sidebar out from under you.
 --
---   1. RENAME. A "game" was always the thing being estimated — one story, one
---      deck, one round. The product calls that an issue, and the schema now
---      says so: games -> issues, game_participants -> issue_participants,
---      game_id -> issue_id, join_game -> join_issue, and the realtime topic
---      prefix game: -> issue:.
+-- Mostly drop/create rather than `alter ... rename` because a plpgsql body is
+-- TEXT resolved at call time, so a rename leaves every function naming the old
+-- table broken — and `create or replace` cannot rename a parameter.
 --
---   2. PER-USER ORDER. issue_order records where each person keeps each issue
---      in their own sidebar. Per user, not per issue, because the list you see
---      includes issues you merely have a seat at — a single shared position
---      column would make those undraggable for you and reorderable for someone
---      else out from under you.
---
--- Why so much of this file is `drop function` / `create function` rather than
--- `alter ... rename`: a plpgsql body is stored as TEXT and resolved at call
--- time, so renaming a table leaves every function that names it broken until
--- the body is rewritten. And `create or replace function` cannot rename an
--- existing parameter, so p_game_id -> p_issue_id needs a real drop. Objects
--- are therefore dropped in dependency order — triggers, then policies, then
--- the functions both of them reference — and rebuilt in the reverse.
---
--- Nothing here re-grants anything. Table and column privileges are held
--- against the object, not its name, so the per-column grant lists from the
--- first migration survive both renames intact. That matters: those grants are
--- what stop a client writing `status`, and silently re-issuing them here would
--- be a chance to widen them by accident.
+-- Nothing is re-granted. Privileges are held against the object, not the name,
+-- so the per-column grants survive the rename; re-issuing them here would be a
+-- chance to widen them by accident.
 
 
 -- ---------------------------------------------------------------------------
@@ -150,14 +134,8 @@ drop function if exists private.is_game_participant(uuid);
 drop function if exists private.is_game_owner(uuid);
 
 
--- ---------------------------------------------------------------------------
--- 4. RLS helpers, rebuilt.
---
--- Unchanged but for the names. Still security definer for the same reason as
--- before: an issue_participants SELECT policy meaning "I see everyone at any
--- table I am sitting at" has to query issue_participants, and inlined that
--- raises 42P17 infinite recursion detected in policy.
--- ---------------------------------------------------------------------------
+-- 4. RLS helpers, rebuilt — names only. Still security definer because an
+-- issue_participants policy that queries issue_participants raises 42P17.
 create function private.is_issue_participant(p_issue_id uuid)
 returns boolean
 language sql
@@ -583,14 +561,9 @@ create trigger issues_before_insert
 before insert on public.issues
 for each row execute function private.poko_issues_before_insert();
 
--- An issue always has its owner at the table.
---
--- Votes hang off a seat, not off an account, so without this the person who
--- created the issue could not vote in it — they would have to follow their own
--- invite link first.
---
--- Must be security definer: issue_participants has no INSERT policy and no
--- INSERT grant, because join_issue is otherwise the only door in.
+-- An issue always seats its owner: votes hang off a seat, so otherwise the
+-- creator would have to follow their own invite link to vote. Security definer
+-- because join_issue is otherwise the only door into issue_participants.
 create function private.poko_issues_after_insert()
 returns trigger
 language plpgsql
@@ -610,14 +583,9 @@ create trigger issues_after_insert
 after insert on public.issues
 for each row execute function private.poko_issues_after_insert();
 
--- A closed issue is a record of what the team decided, so its details stop
--- being editable: reopen the round first, which is a visible act everyone at
--- the table sees.
---
--- Only the *editable* columns are frozen. The round transitions all run
--- through this same trigger and none of them touch those columns, so they pass
--- straight through — a blanket "no updates while closed" would mean you could
--- never reopen anything.
+-- A closed issue records what the team decided, so its details freeze —
+-- reopen first, which everyone at the table sees. Only the EDITABLE columns
+-- freeze: a blanket "no updates while closed" would block reopening itself.
 create function private.poko_issues_before_update()
 returns trigger
 language plpgsql
@@ -694,15 +662,9 @@ after insert or update or delete on public.issue_participants
 for each row execute function private.poko_participants_after();
 
 
--- ---------------------------------------------------------------------------
--- 7. Public RPCs, rebuilt.
---
--- Each: reject anon, lock the issue row, authorise, validate state, act.
--- These are the only security-definer functions in an exposed schema, so each
--- is explicitly revoked from PUBLIC/anon and granted to authenticated only —
--- Postgres grants EXECUTE to PUBLIC by default, which would otherwise make
--- them callable without a session.
--- ---------------------------------------------------------------------------
+-- 7. Public RPCs, rebuilt. Each: reject anon, lock the row, authorise,
+-- validate, act. Revoked from PUBLIC/anon because Postgres grants EXECUTE to
+-- PUBLIC by default, which would make them callable without a session.
 
 -- Possession of the slug IS the invitation, and there is no RLS formulation of
 -- "you may read the row whose slug you can name" — hence this function. It is
@@ -1010,25 +972,12 @@ with check (
 );
 
 
--- ---------------------------------------------------------------------------
--- 9. issue_order — where YOU keep each issue in YOUR list.
---
--- Keyed on (user_id, issue_id) rather than a single column on `issues`,
--- because the list you see includes issues you only have a seat at. A shared
--- position column would mean the rows you don't own are undraggable for you
--- and get rearranged out from under you by whoever does own them; your
--- backlog order is a private working preference, not a fact about the issue.
---
--- Contiguous integers rather than gapped floats or a fractional index: the
--- client always sends the whole order, so there is nothing to interpolate
--- between, and a dense sequence cannot drift or run out of precision after
--- enough drops in the same spot.
---
--- Rows for issues you have never dragged simply do not exist. That absence is
--- meaningful — `listIssues` sorts unranked issues first, newest first — so a
--- brand-new issue appears at the top where you just made it, and a list nobody
--- has ever reordered behaves exactly as it did before this migration.
--- ---------------------------------------------------------------------------
+-- 9. issue_order — where YOU keep each issue in YOUR list. Keyed on
+-- (user_id, issue_id): your order is a private working preference, not a fact
+-- about the issue. Contiguous integers, not fractional indexes, because the
+-- client always sends the whole list — nothing to interpolate between.
+-- A missing row is meaningful: listIssues sorts unranked issues first, so a
+-- new issue appears where you just made it.
 create table public.issue_order (
   user_id    uuid    not null references auth.users (id)    on delete cascade,
   issue_id   uuid    not null references public.issues (id) on delete cascade,
@@ -1061,17 +1010,10 @@ create policy issue_order_select_own on public.issue_order
 for select to authenticated
 using ( user_id = (select auth.uid()) );
 
--- Replaces your whole order in one call.
---
--- Wholesale rather than "move issue X to position N": the client already knows
--- the full list it is rendering, one statement is atomic where a read-modify-
--- write pair is not, and an order that has drifted for any reason is repaired
--- by the next drop rather than accumulating.
---
--- Security definer because issue_order has no write grant at all. The `exists`
--- filter is why: ids you cannot see are dropped rather than refused, so a
--- stale tab whose list still holds an issue someone else just deleted saves
--- the rest of its order instead of failing whole.
+-- Replaces your whole order in one call: atomic where read-modify-write is
+-- not, and a drifted order is repaired by the next drop. Security definer
+-- because issue_order has no write grant; the `exists` filter drops ids you
+-- cannot see rather than refusing, so a stale tab still saves the rest.
 create function public.reorder_issues(p_issue_ids uuid[])
 returns void
 language plpgsql

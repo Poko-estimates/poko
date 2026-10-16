@@ -28,21 +28,10 @@ type Group = {
 }
 
 /**
- * Splits the list into sprint cards, keeping each sprint's issues in the order
- * the list already had them.
- *
- * Sprints appear in the order their first issue does, so the arrangement you
- * dragged decides which card is on top as well as what sits inside it — rather
- * than a second, invisible rule about sprints competing with it. Uncategorized
- * always sinks to the bottom: it is where things land when nobody has filed
- * them, not a sprint the team is working on.
- *
- * `owned` is why this takes a second argument. Cards built from issues alone
- * would make a sprint disappear the moment its last issue moved out — still
- * there, still offered in the dialog and the move menu, but with nowhere to
- * delete it from. So every sprint of yours gets a card whether or not anything
- * is in it, and the empty ones park between the active sprints and
- * Uncategorized.
+ * Splits the list into sprint cards. Sprints appear in the order their first
+ * issue does, so the arrangement you dragged decides everything; Uncategorized
+ * sinks to the bottom. `owned` exists because a sprint built from issues alone
+ * would vanish when its last issue left, leaving nowhere to delete it from.
  */
 function groupBySprint(issues: Issue[], owned: Sprint[]): Group[] {
   const groups = new Map<string, Group>()
@@ -79,12 +68,9 @@ function rankOf(group: Group) {
 }
 
 /**
- * The issue list, grouped into the sprint each issue is being refined in.
- *
- * Selection lives in the URL rather than in component state, so it survives a
- * reload, can be linked to, and lets the server render the room for the chosen
- * issue. The ORDER is the other way round — it lives in the database, per
- * viewer, because it has to outlive the tab and follow you to another device.
+ * Selection lives in the URL so it survives a reload and lets the server
+ * render the chosen room. The ORDER lives in the database instead, per viewer,
+ * because it has to outlive the tab and follow you to another device.
  */
 function IssuesPanel({
   activeSlug,
@@ -122,14 +108,9 @@ function IssuesPanel({
   const named = groups.filter((group) => group.sprint !== null).length
 
   /**
-   * Folds one sprint's new internal order back into the whole list.
-   *
-   * `reorder_issues` stores one flat sequence per viewer, and grouping is a
-   * rendering decision on top of it — so a drag inside a sprint has to be
-   * expressed as a change to that one sequence. Every slot a member of the
-   * group occupied is refilled, in order, from the group's new arrangement;
-   * everything else stays exactly where it was. That holds even when a
-   * sprint's issues are not next to each other in the flat order.
+   * `reorder_issues` stores one flat sequence per viewer and grouping is only
+   * a rendering decision, so a drag inside a sprint refills exactly the slots
+   * that group occupied — correct even when they are not adjacent.
    */
   function handleGroupReorder(group: Group, nextIds: string[]) {
     const members = new Set(group.issues.map((issue) => issue.id))
@@ -214,14 +195,9 @@ function IssuesPanel({
 }
 
 /**
- * One sprint's card.
- *
- * Its own component because each card is a separate drag surface: the hook
- * measures the rows of one list, and a hook cannot be called in a loop. That
- * also makes a drag naturally sprint-bound — there is no gesture that could
- * carry a row out of its own card, so a drop can never silently refile an
- * issue. Moving between sprints is the edit dialog's job, where it is a
- * deliberate choice rather than a slip of the wrist.
+ * Its own component because each card is a separate drag surface and a hook
+ * cannot be called in a loop. That also makes drags sprint-bound, so a drop
+ * can never silently refile an issue — that is the edit dialog's job.
  */
 function SprintGroup({
   activeSlug,
@@ -324,15 +300,10 @@ function SprintGroup({
           const closed = issue.status === "closed"
           const lifted = order.liftedId === issue.id
 
-          // The row's chrome lives on the <li>, so the handle and the delete
-          // control can sit beside the link rather than inside it — nesting
-          // one interactive element in another is invalid HTML and unusable by
-          // keyboard.
-          //
-          // The press that may become a drag is caught here too, which is what
-          // makes the whole card draggable and not just the handle; it only
-          // commits to a drag once the pointer has moved, so a click still
-          // opens the issue.
+          // Chrome lives on the <li> so the handle and delete sit beside the
+          // link, not inside it — nested interactive elements are invalid HTML
+          // and unusable by keyboard. The press that may become a drag is
+          // caught here too, committing only once the pointer moves.
           return (
             <li
               key={issue.id}

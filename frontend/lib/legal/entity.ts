@@ -1,15 +1,7 @@
 /**
- * The facts the legal pages have to state and the codebase cannot derive.
- *
- * All three documents read from here rather than naming the operator in prose,
- * because these values appear a dozen times across the pages and a policy that
- * names two different entities is worse than one that names none.
- *
- * There is no postal address or company number here because Poko is not a
- * registered company yet. Both controller identity and contact details are
- * still required under GDPR Art. 13, so the email addresses below are carrying
- * that obligation on their own — which means they have to be monitored, and
- * they have to be replaced by a real entity block once one exists.
+ * Facts the legal pages must state, in one place so they cannot disagree.
+ * No address yet: GDPR Art. 13 still needs contact details, so these inboxes
+ * carry that alone and have to be monitored.
  */
 export const entity = {
   name: "Poko",
@@ -18,27 +10,15 @@ export const entity = {
   /** The inbox for contractual and legal notices. */
   legalEmail: "legal.poko@gmail.com",
   /**
-   * Where the contact page sends people.
-   *
-   * This one carries more weight than the other two. The contact page is a
-   * mailto link and nothing else now — no form, no table, no record that
-   * anyone tried — so an address that bounces or goes unread loses every
-   * message silently, with the sender believing it arrived. It shares an inbox
-   * with legal notices today; give it its own the moment there is a domain to
-   * hang one off.
+   * The contact page is a mailto and nothing else, so a bounced or unread
+   * address loses every message silently. Give it its own inbox eventually.
    */
   contactEmail: "legal.poko@gmail.com",
 } as const
 
 /**
- * The law the contract runs under, and the courts that hear a dispute about it.
- *
- * Separate from the two data-protection regulators below on purpose: which law
- * governs the agreement is a choice we make, while which authority hears a
- * privacy complaint is decided by where the reader lives and is not ours to
- * pick. Conflating them is how a policy ends up telling an EU reader their only
- * recourse is a court in another hemisphere, which is not true and not
- * enforceable against a consumer.
+ * Kept apart from the regulators below: governing law is ours to choose, but
+ * which authority hears a privacy complaint depends on where the reader lives.
  */
 export const governing = {
   /** TODO: confirm with counsel before publishing. */
@@ -47,12 +27,8 @@ export const governing = {
 } as const
 
 /**
- * Where a complaint goes when we have not resolved it ourselves.
- *
- * Two regulators are named because Poko is answerable to both: the Ghanaian
- * Act binds the operator, and the GDPR binds anyone offering a service to
- * people in the EU/UK regardless of where they run it. A reader in either place
- * needs to see their own authority, not ours.
+ * Both are named because Poko answers to both — Act 843 binds the operator,
+ * the GDPR binds anyone serving EU/UK users wherever they run.
  */
 export const authorities = {
   ghana: "the Data Protection Commission of Ghana",
@@ -61,13 +37,8 @@ export const authorities = {
 } as const
 
 /**
- * Third parties that process personal data on our behalf.
- *
- * Listed by role rather than buried in prose so the list can be checked against
- * reality. Adding a service that touches user data means adding a row here and
- * dating the privacy policy again — that is the point of keeping it in one
- * place. Supabase is named with confidence; it is the database, auth service
- * and realtime transport this app is built on.
+ * Processors, listed so the claim can be checked against reality. A new
+ * service that touches user data means a row here and a fresh policy date.
  */
 export const subprocessors = [
   {
@@ -82,11 +53,8 @@ export const subprocessors = [
     data: "Request metadata, including IP address and browser user agent, in server logs.",
   },
   {
-    // TODO: name the transactional email provider used for confirmation and
-    // password-reset messages, or delete this row if Supabase's built-in
-    // sender is still doing it. The RECEIVING half is Google either way, for
-    // as long as the contact address is a Gmail one — a processing
-    // relationship whether or not anyone signed anything, so it is listed.
+    // TODO: name the sender, or drop that half if Supabase's own still does
+    // it. Receiving is Google regardless, while the address is a Gmail one.
     name: "TODO — email provider, and Google (Gmail)",
     role: "Sending account email, and receiving anything you write to us",
     data: "Your email address, the contents of account emails we send you, and any message you send us.",
@@ -94,12 +62,8 @@ export const subprocessors = [
 ] as const
 
 /**
- * When each document last changed, written out rather than computed.
- *
- * A generated `new Date()` would restamp all three every time the site is
- * rebuilt, which quietly claims a review that never happened — and the date on
- * a policy is the thing a reader uses to decide whether it still describes the
- * service. Edit the one document's date when you edit that document.
+ * Written out, not computed: `new Date()` would restamp all three on every
+ * build, claiming a review that never happened. Edit the one you changed.
  */
 export const lastUpdated = {
   privacy: "28 September 2026",
