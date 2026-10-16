@@ -250,7 +250,7 @@ const sections: readonly LegalSection[] = [
         moves only when the text actually does. If something here does not match
         what you see in your browser, that is worth telling us about — write to{" "}
         <MailTo address={entity.privacyEmail} /> or use the{" "}
-        <TextLink href="/contact">contact form</TextLink>.
+        <TextLink href="/contact">contact page</TextLink>.
       </P>
     ),
   },

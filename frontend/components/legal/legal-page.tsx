@@ -130,7 +130,7 @@ function LegalPage({
                   <p className="text-sm leading-relaxed text-muted-foreground">
                     Questions about this document? Write to{" "}
                     <MailTo address={entity.privacyEmail} /> or use the{" "}
-                    <TextLink href="/contact">contact form</TextLink>.
+                    <TextLink href="/contact">contact page</TextLink>.
                   </p>
 
                   <ul className="flex flex-wrap gap-x-6 gap-y-2">

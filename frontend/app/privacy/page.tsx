@@ -118,9 +118,11 @@ const sections: readonly LegalSection[] = [
           When you contact us
         </h3>
         <P>
-          The contact form stores your email address, your message, a name if
-          you gave one, the fact that you ticked the consent box, and — if you
-          were signed in — which account sent it.
+          There is no contact form — the contact page is a button that opens
+          your own mail client. Writing to us means we hold what your message
+          contains, and what your mail client sends with it: your address, the
+          name it puts on your mail, and the message itself. It lives in our
+          mailbox and nowhere else. It goes into no database of ours.
         </P>
 
         <h3 className="mt-2 text-base font-semibold text-primary">
@@ -196,7 +198,10 @@ const sections: readonly LegalSection[] = [
                 You asked us something and expect a reply, which we cannot send
                 without your address.
               </td>
-              <td>Your consent, given by ticking the box on the contact form</td>
+              <td>
+                Our legitimate interest in answering someone who has written to
+                us
+              </td>
             </tr>
             <tr>
               <td>Meet legal and accounting obligations</td>
@@ -340,12 +345,11 @@ const sections: readonly LegalSection[] = [
             room has to be able to show who is at the table.
           </li>
           <li>
-            <Term>Contact messages</Term> are kept for up to 24 months so we can
-            follow up and see patterns in what people report, and a scheduled
-            job deletes them at that point — the limit runs itself rather than
-            waiting for someone to remember it. Delete your account and any
-            message you sent stays, but is detached from it: the link to your
-            account is erased rather than the feedback being silently retracted.
+            <Term>Email you send us</Term> stays in our mailbox while it is
+            still useful — a thread we may need to pick up again, a bug report
+            that is not fixed yet — and we clear out correspondence we no
+            longer need. Deleting your account does not reach into our mailbox,
+            so ask us if you want a thread removed too.
           </li>
           <li>
             <Term>Server logs</Term> are kept for a short period by our

@@ -17,6 +17,17 @@ export const entity = {
   privacyEmail: "privacy.poko@gmail.com",
   /** The inbox for contractual and legal notices. */
   legalEmail: "legal.poko@gmail.com",
+  /**
+   * Where the contact page sends people.
+   *
+   * This one carries more weight than the other two. The contact page is a
+   * mailto link and nothing else now — no form, no table, no record that
+   * anyone tried — so an address that bounces or goes unread loses every
+   * message silently, with the sender believing it arrived. It shares an inbox
+   * with legal notices today; give it its own the moment there is a domain to
+   * hang one off.
+   */
+  contactEmail: "legal.poko@gmail.com",
 } as const
 
 /**
@@ -73,10 +84,12 @@ export const subprocessors = [
   {
     // TODO: name the transactional email provider used for confirmation and
     // password-reset messages, or delete this row if Supabase's built-in
-    // sender is still doing it.
-    name: "TODO — email provider",
-    role: "Transactional email",
-    data: "Your email address and the contents of account emails we send you.",
+    // sender is still doing it. The RECEIVING half is Google either way, for
+    // as long as the contact address is a Gmail one — a processing
+    // relationship whether or not anyone signed anything, so it is listed.
+    name: "TODO — email provider, and Google (Gmail)",
+    role: "Sending account email, and receiving anything you write to us",
+    data: "Your email address, the contents of account emails we send you, and any message you send us.",
   },
 ] as const
 

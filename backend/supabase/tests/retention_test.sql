@@ -1,5 +1,5 @@
--- Retention sweeps: the two jobs that make the privacy policy's retention
--- claims true. Run with:
+-- The retention sweep behind the privacy policy's claim about guest data.
+-- Run with:
 --
 --   pnpm db test:db
 --
@@ -10,17 +10,15 @@
 -- mid-vote, which looks like a bug in the room, not in a cron job nobody was
 -- watching.
 --
--- Time is driven by inserting rows with explicit `created_at` values in the
--- past rather than by waiting, and the retention window is passed as an
--- argument so the 24-month boundary can be asserted in milliseconds. The
--- DEFAULT argument is asserted separately, because the default is the part
--- that has to match the published policy.
+-- Age is driven by inserting auth.users rows with explicit `created_at` values
+-- in the past rather than by waiting, so a thirty-day-old session and a
+-- one-minute-old one can both be asserted in the same millisecond.
 
 begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(17);
+select plan(11);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures.
@@ -95,18 +93,6 @@ select ok(
   'anon cannot execute the anonymous-user sweep'
 );
 
-select ok(
-  not has_function_privilege('authenticated',
-    'private.poko_sweep_contact_messages(interval,integer)', 'execute'),
-  'authenticated cannot execute the contact-message sweep'
-);
-
-select ok(
-  not has_function_privilege('anon',
-    'private.poko_sweep_contact_messages(interval,integer)', 'execute'),
-  'anon cannot execute the contact-message sweep'
-);
-
 -- Invoker rights, deliberately. Security definer here would mean that widening
 -- the execute grant by accident also hands out DELETE on auth.users.
 select is(
@@ -169,53 +155,6 @@ select is_empty(
   'the guest session goes when the issue it belonged to is deleted'
 );
 
-
--- ---------------------------------------------------------------------------
--- Sweeping contact messages.
--- ---------------------------------------------------------------------------
-insert into public.contact_messages (email, message, privacy_accepted, created_at)
-values
-  ('old@poko.test',    'Two years and a day ago.', true,
-   now() - interval '24 months' - interval '1 day'),
-  ('recent@poko.test', 'Yesterday.',               true,
-   now() - interval '1 day');
-
-select is(
-  private.poko_sweep_contact_messages(),
-  1,
-  'the default 24-month window deletes the older message and not the newer'
-);
-
-select is_empty(
-  $$ select 1 from public.contact_messages where email = 'old@poko.test' $$,
-  'the message past the retention window is gone'
-);
-
-select isnt_empty(
-  $$ select 1 from public.contact_messages where email = 'recent@poko.test' $$,
-  'a message inside the window is kept'
-);
-
--- The other side of the published boundary.
---
--- Asserted behaviourally rather than by reading the function's default out of
--- the catalogue: proargdefaults is a pg_node_tree, and the one readable form
--- of it is source text that Postgres has already normalised ('24 months'
--- becomes '2 years'), so a text comparison would fail against a default that
--- is perfectly correct. Running the sweep proves the thing that matters.
---
--- With the assertion above, this pins the window between 23 and 24 months —
--- close enough that shortening it to a year, or dropping it to nothing, fails
--- here and sends the reader to the privacy policy page.
-insert into public.contact_messages (email, message, privacy_accepted, created_at)
-values ('boundary@poko.test', 'Twenty-three months ago.', true,
-        now() - interval '23 months');
-
-select is(
-  private.poko_sweep_contact_messages(),
-  0,
-  'a message 23 months old is still inside the published 24-month window'
-);
 
 select * from finish();
 
