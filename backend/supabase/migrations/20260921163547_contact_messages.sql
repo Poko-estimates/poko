@@ -1,4 +1,4 @@
--- The contact form's inbox.
+ -- The contact form's inbox.
 --
 -- A WRITE-ONLY table, and that is the whole design. The form is public, so
 -- `anon` has to be able to insert — and a table that anyone on the internet

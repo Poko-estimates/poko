@@ -42,34 +42,19 @@ const sections: readonly LegalSection[] = [
           your data lives.
         </P>
         <P>
-          If you do not agree to these terms, do not use Poko.
-        </P>
-      </>
-    ),
-  },
-  {
-    id: "what-poko-is",
-    heading: "What Poko is",
-    body: (
-      <>
-        <P>
-          Poko is a hosted planning poker tool. You create issues, group them
-          into sprints, share a link, and your team plays a card each. Cards are
-          hidden until the round closes, either on your word or when the timebox
-          runs out, and an estimate is recorded when every card matches.
-        </P>
-        <P>
-          Poko is an estimation aid, not a system of record. It does not decide
-          what your team should build, and an estimate it stores is your
-          team&apos;s judgement rather than ours. Keep your own copy of anything
-          you cannot afford to lose.
+          Poko itself is a hosted planning poker tool: you create issues, share
+          a link, and your team plays a card each. It is an estimation aid, not
+          a system of record — an estimate it stores is your team&apos;s
+          judgement rather than ours, so keep your own copy of anything you
+          cannot afford to lose. If you do not agree to these terms, do not use
+          Poko.
         </P>
       </>
     ),
   },
   {
     id: "accounts",
-    heading: "Accounts",
+    heading: "Accounts and guests",
     body: (
       <>
         <P>
@@ -93,17 +78,11 @@ const sections: readonly LegalSection[] = [
             think someone else has got into your account.
           </li>
         </Bullets>
-      </>
-    ),
-  },
-  {
-    id: "guests-and-links",
-    heading: "Guests and invite links",
-    body: (
-      <>
         <P>
-          A room&apos;s invite link is the invitation. Anyone holding it can
-          take a seat under a name of their choosing, without an account.
+          Guests need none of that. A room&apos;s invite link is the invitation,
+          and anyone holding it can take a seat under a name of their choosing.
+          If you invite guests, you are responsible for who you invite and for
+          what they do in your room.
         </P>
         <Callout>
           <Term>Treat an invite link like a key.</Term> There is no second check
@@ -112,11 +91,6 @@ const sections: readonly LegalSection[] = [
           and not more widely, and create a new issue if a link has gone
           somewhere it should not have.
         </Callout>
-        <P>
-          If you invite guests, you are responsible for who you invite and for
-          what they do in your room. We can remove a room or a seat if it is
-          being used in a way these terms forbid.
-        </P>
       </>
     ),
   },
@@ -198,41 +172,23 @@ const sections: readonly LegalSection[] = [
     ),
   },
   {
-    id: "plans-and-payment",
+    id: "plans",
     heading: "Plans and payment",
     body: (
       <>
         <P>
-          Poko has a free plan, and a paid plan whose price and limits are shown
-          on our <TextLink href="/#pricing">pricing page</TextLink>. The price
-          there is the price that applies; we have deliberately not repeated a
-          figure in this document so that the two cannot disagree.
+          <Term>Poko is free to use today.</Term> We take no payment, hold no
+          card details and run no subscriptions, so nothing in this agreement
+          obliges you to pay us anything.
         </P>
-        <Bullets>
-          <li>
-            A paid subscription renews automatically for the same period until
-            you cancel it.
-          </li>
-          <li>
-            <Term>Cancel any time.</Term> Cancelling stops the next renewal; you
-            keep the paid features until the end of the period you have already
-            paid for.
-          </li>
-          <li>
-            Fees already paid are non-refundable except where the law says
-            otherwise, or where we have failed to provide the service and cannot
-            put it right.
-          </li>
-          <li>
-            Prices exclude any tax we are required to add, and we will tell you
-            at least 30 days before a price change takes effect. Your remedy if
-            you do not accept it is to cancel before it applies.
-          </li>
-          <li>
-            If a payment fails and stays unpaid, we may downgrade the account to
-            the free plan. Your data is not deleted because of a failed payment.
-          </li>
-        </Bullets>
+        <P>
+          The paid plan shown on our{" "}
+          <TextLink href="/#pricing">pricing page</TextLink> is not yet
+          purchasable. Before it is, we will publish terms covering price,
+          renewal, cancellation and refunds, and you will have to accept them
+          separately — signing up today does not commit you to a future plan or
+          a future price.
+        </P>
       </>
     ),
   },
@@ -249,10 +205,8 @@ const sections: readonly LegalSection[] = [
         </P>
         <P>
           Poko changes. We add, alter and occasionally remove features. Where a
-          change materially reduces what the service does for a paying
-          subscriber, we will give reasonable notice and you may cancel and
-          receive a pro-rata refund of the unused part of the period you have
-          paid for.
+          change materially reduces what the service does for you, we will give
+          reasonable notice rather than removing it from under you.
         </P>
       </>
     ),
@@ -282,9 +236,7 @@ const sections: readonly LegalSection[] = [
           We may suspend or close an account that breaks these terms, that is
           being used to harm other users or the service, or where we are
           required to by law. Except where the breach is serious or urgent, we
-          will warn you first and give you a chance to put it right. If we close
-          a paid account for reasons that are not your breach, we will refund
-          the unused part of the period you paid for.
+          will warn you first and give you a chance to put it right.
         </P>
         {/* Named rather than numbered: the numbering is derived from the
             section order, so "section 12" would quietly point somewhere else
