@@ -49,12 +49,9 @@ type Issue = {
   timeboxSeconds: number | null
   roundEndsAt: string | null
   /**
-   * When the clock was held, or null when it is running (or stopped).
-   *
-   * While this is set, `roundEndsAt` is deliberately stale — the remaining
-   * time is `roundEndsAt - roundPausedAt`, and resuming pushes the deadline
-   * forward by however long the pause lasted. Anything asking "has the
-   * deadline passed?" has to check this first.
+   * When the clock was held, null while running. `roundEndsAt` is stale
+   * meanwhile — remaining time is `roundEndsAt - roundPausedAt`, so anything
+   * asking "has the deadline passed?" must check this first.
    */
   roundPausedAt: string | null
 }
@@ -65,12 +62,8 @@ type IssueDraft = {
   /** Optional. Blank is normalised to null rather than stored as "". */
   key: string | null
   /**
-   * The sprint by NAME, not by id.
-   *
-   * The dialog's sprint field creates on demand — type something that isn't in
-   * the list and it becomes a sprint — so a name is the only thing the form
-   * can honestly report. Resolving it to a row (finding the existing one, or
-   * inserting it) belongs on the server, where the uniqueness constraint is.
+   * By NAME, not id: the sprint field creates on demand, so a name is all the
+   * form can honestly report. Resolving it belongs with the unique constraint.
    */
   sprintName: string | null
   deck: Deck
@@ -79,13 +72,9 @@ type IssueDraft = {
 }
 
 /**
- * One person at the table.
- *
- * `hasVoted` and `value` are deliberately separate. A null `value` is
- * ambiguous on its own — it means either "hasn't picked a card yet" or "has
- * picked one, and the round is still open so you aren't allowed to see it".
- * Card back versus empty seat is the whole visual point of blind voting, so
- * never collapse these two fields into one.
+ * `hasVoted` and `value` stay separate: a null `value` alone cannot tell
+ * "no card yet" from "card down, round still open". Card back versus empty
+ * seat is the visual point of blind voting — never collapse these.
  */
 type Seat = {
   userId: string

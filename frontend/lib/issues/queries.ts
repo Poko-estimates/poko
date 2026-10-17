@@ -9,26 +9,16 @@ import {
 import { createClient } from "@/lib/supabase/server"
 
 /**
- * Reads for server components. Plain async functions rather than server
- * actions, so an RSC calls them directly instead of paying a Server Action
- * round-trip.
- *
- * None of these filter by user: RLS already limits every row to issues the
- * caller is seated at, so a query that forgot a `where` returns nothing rather
- * than everything.
+ * Reads for server components — plain async functions, so an RSC skips the
+ * Server Action round-trip. None filter by user: RLS already limits the rows,
+ * so a query missing a `where` returns nothing rather than everything.
  */
 
 /**
- * Issues this user can see, in the order they keep them.
- *
- * Two queries rather than an embedded select: `issue_order` is per-viewer, so
- * there is exactly one matching row per issue at most and PostgREST cannot
- * order the outer rows by an embedded column anyway. The sort happens here.
- *
- * Neither query filters by user. RLS limits the issues to ones this person is
- * seated at — which includes other people's, hence `userId`, so each row knows
- * whether it is yours to delete — and limits `issue_order` to your own rows,
- * so somebody else's arrangement can never leak into yours.
+ * Two queries, not an embedded select: PostgREST cannot order outer rows by an
+ * embedded column, so the sort happens here. Neither filters by user — RLS
+ * limits issues to ones you are seated at (hence `userId`, so a row knows if
+ * it is yours to delete) and `issue_order` to your own arrangement.
  */
 async function listIssues(userId: string): Promise<Issue[]> {
   const supabase = await createClient()
@@ -77,12 +67,9 @@ async function listIssues(userId: string): Promise<Issue[]> {
 }
 
 /**
- * The sprints this person can file an issue into — their own, newest first.
- *
- * Deliberately not every sprint they can SEE. The select policy also exposes
- * sprints behind an issue they merely have a seat at, but a trigger refuses to
- * file an issue into a sprint its owner does not own, so offering those in the
- * dialog would be offering a choice the database rejects.
+ * Sprints you can file INTO — your own, not every one you can see. A trigger
+ * refuses to file into a sprint you do not own, so offering the rest would be
+ * offering a choice the database rejects.
  */
 async function listSprints(userId: string): Promise<Sprint[]> {
   const supabase = await createClient()
@@ -99,17 +86,10 @@ async function listSprints(userId: string): Promise<Sprint[]> {
 }
 
 /**
- * One issue plus its table, or null when the slug is unknown or not yours.
- *
- * Three queries rather than one embedded select: `votes` has no direct foreign
- * key to `issues` (it hangs off the seat), and keeping them separate makes it
- * obvious that the vote read is the one the blind-voting policy filters.
- *
- * That filtering is the important part. This code does not decide which cards
- * you may see — it asks for all of them, and the database returns only your own
- * until the round closes. If the policy were wrong, this query would quietly
- * start returning everyone's cards, which is exactly why there is a pgTAP
- * assertion on it rather than a check here.
+ * Three queries, not an embedded select: `votes` hangs off the seat, not the
+ * issue. This asks for every card and the DATABASE returns only your own until
+ * the round closes — if that policy broke, this would silently leak the table,
+ * which is why the guarantee is a pgTAP assertion rather than a check here.
  */
 async function getRoomState(
   slug: string,

@@ -11,31 +11,16 @@ import {
 } from "react"
 
 /**
- * Drag-to-reorder for a vertical list, by pointer or by keyboard.
+ * Drag-to-reorder by pointer or keyboard, hand-rolled because a drag library
+ * would be the largest dependency in the project for ~100 lines of geometry.
  *
- * Hand-rolled rather than pulled from a library because the list is one column
- * of a handful of rows, and the whole job is the ~100 lines of geometry below
- * — a drag library would be the largest dependency in the project for it.
+ * THE DOM ORDER NEVER CHANGES MID-DRAG — only the drop rewrites the list. So
+ * nothing reflows (geometry measured at lift stays true) and a keyboard-driven
+ * handle cannot lose focus to a reparented node. Pointer and keyboard share
+ * all state and differ only in what sets the offset.
  *
- * THE DOM ORDER NEVER CHANGES MID-DRAG. The lifted row is moved with a
- * transform and the rows it displaces slide out of its way; only the drop
- * rewrites the list. Two things fall out of that, and both are the reason it
- * is built this way rather than by re-rendering into the projected order:
- *
- *   * Nothing reflows, so the row geometry measured once at lift stays true
- *     for the whole gesture — which is what lets the drop index be computed
- *     from real row centres instead of an assumed uniform row height.
- *   * The row keeps its identity in the DOM, so a handle being driven by the
- *     keyboard cannot lose focus to a node being reparented underneath it.
- *
- * Pointer and keyboard therefore share all of their state and differ in one
- * place: what sets the offset. A finger sets it directly; an arrow key sets it
- * to whatever lands the row exactly in the slot it is moving to.
- *
- * The keyboard model is lift/move/drop (space to pick up, arrows to move,
- * space to drop, escape to cancel) rather than "arrows reorder immediately",
- * so that holding an arrow key cannot fire a save per repeat: one gesture, one
- * write.
+ * Keyboard is lift/move/drop, not "arrows reorder immediately", so holding an
+ * arrow key cannot fire one save per repeat.
  */
 
 /** A row's geometry at the moment of lift. */
@@ -183,12 +168,8 @@ function useDragOrder({
   }
 
   /**
-   * Commits a finished gesture.
-   *
-   * Refuses when the row is no longer where it was picked up from: a
-   * revalidation can land mid-drag, and the geometry — and `from` with it —
-   * describes a list that no longer exists. Abandoning is the safe answer,
-   * because committing would move whichever row inherited that slot.
+   * Refuses when the row moved since lift: a revalidation can land mid-drag,
+   * and committing would move whichever row inherited that slot.
    */
   function drop(finished: Drag) {
     setDrag(null)
@@ -233,12 +214,9 @@ function useDragOrder({
   }
 
   /**
-   * Clears the swallow flag at the start of every press, in the capture phase
-   * so it lands before either pointerdown handler below can set it.
-   *
-   * It is the safety net for a drag whose click never arrived — released off
-   * the window, say — which would otherwise leave the flag armed and eat the
-   * next genuine click on the list.
+   * Clears the swallow flag in the capture phase, before either pointerdown
+   * handler sets it. Safety net for a drag whose click never arrived — the
+   * flag would otherwise stay armed and eat the next genuine click.
    */
   function handlePointerDownCapture() {
     swallowClick.current = false

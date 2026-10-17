@@ -1,19 +1,12 @@
--- Poko: games, seats, blind votes, and the round state machine.
+-- Poko: games, seats, blind votes, and the round state machine. Two invariants
+-- this file defends, both in the database rather than the UI:
 --
--- Two invariants this file exists to defend, both enforced by the database
--- rather than by the UI:
+--   1. BLIND VOTING. A vote's value is readable only by its caster until the
+--      round closes; "who has voted" travels separately on the seat row.
+--   2. NO CLIENT MOVES THE ROUND. status, round, estimate, slug, closed_* and
+--      round_ends_at are in NO grant, so no client SQL can write them.
 --
---   1. BLIND VOTING. Until a round stops being the open one, a vote's value is
---      readable only by the person who cast it. "Who has voted" travels
---      separately, on the seat row, so the table can show progress without
---      leaking cards.
---   2. NO CLIENT CAN MOVE THE ROUND. status, round, estimate, slug, closed_*
---      and round_ends_at appear in no GRANT, so there is no SQL a client can
---      send that writes them. The only writers are security-definer routines
---      that check authority first.
---
--- Order matters: the deck-validation function is referenced by a CHECK on
--- games, so it must exist first; policies must follow the helpers they call.
+-- Order matters: helpers before the policies and CHECKs that call them.
 
 
 -- ---------------------------------------------------------------------------
@@ -27,14 +20,8 @@ create schema if not exists private;
 revoke all on schema private from public;
 
 
--- ---------------------------------------------------------------------------
--- 1. Deck validation.
---
--- Called from a CHECK constraint, so it must be immutable. Mirrors
--- minDeckValues/maxDeckValues in frontend/lib/decks.ts and the dedupe that
--- parseDeckValues() already does client-side; an action is a public endpoint,
--- so the rule has to live here too.
--- ---------------------------------------------------------------------------
+-- 1. Deck validation. Immutable because a CHECK calls it. Mirrors decks.ts —
+-- an action is a public endpoint, so the rule has to live here too.
 create or replace function public.poko_deck_values_ok(vals text[])
 returns boolean
 language sql
@@ -51,16 +38,10 @@ as $$
 $$;
 
 
--- ---------------------------------------------------------------------------
--- 2. Slug generation.
---
--- The slug IS the invitation: possession grants entry, so it must be
--- unguessable and the client must not choose it. A readable prefix keeps the
--- URL friendly; 12 hex chars (~48 bits) keep it from being enumerable.
---
--- This has to be a trigger. A column DEFAULT cannot reference another column,
--- and a GENERATED column cannot be volatile.
--- ---------------------------------------------------------------------------
+-- 2. Slug generation. The slug IS the invitation, so it must be unguessable
+-- and never client-chosen: 12 hex chars (~48 bits) after a readable prefix.
+-- A trigger because a DEFAULT cannot read another column and GENERATED cannot
+-- be volatile.
 create or replace function private.poko_slug(p_name text)
 returns text
 language sql
@@ -79,15 +60,9 @@ as $$
 $$;
 
 
--- ---------------------------------------------------------------------------
--- 3. games — the room, the deck, and the round state machine.
---
--- The deck is stored inline rather than in its own table: it is a value object
--- captured at creation, not a shared entity. Presets already live as frontend
--- constants, so there is nothing to look up, and inlining buys the same-row
--- CHECK that an estimate is always a card from THIS game's deck — which a
--- separate table could not express.
--- ---------------------------------------------------------------------------
+-- 3. games — the room, the deck, the round state machine. The deck is inline
+-- because it is a value object captured at creation, and because inlining buys
+-- the same-row CHECK that an estimate is a card from THIS game's deck.
 create table public.games (
   id                     uuid primary key default gen_random_uuid(),
   owner_id               uuid not null default auth.uid()
@@ -223,20 +198,11 @@ comment on table public.votes is
   'VALUE. Every live update is a hand-built Broadcast payload from a trigger.';
 
 
--- ---------------------------------------------------------------------------
--- 6. RLS helpers.
---
--- All three are security definer for one reason: policy recursion. A
--- game_participants SELECT policy that means "I see everyone at any table I am
--- sitting at" has to query game_participants, and inlined that raises
--- 42P17 infinite recursion detected in policy — for every role, so nothing
--- works at all. Reading the table as the function owner breaks the cycle.
---
--- Each contains its own auth.uid() check, so none can be used as an oracle
--- about someone else's data. search_path is pinned and every name qualified:
--- `authenticated` can create objects in public on a default project, so an
--- unqualified name inside a definer function is a privilege-escalation hole.
--- ---------------------------------------------------------------------------
+-- 6. RLS helpers. Security definer to break policy recursion: a
+-- game_participants policy that queries game_participants raises 42P17 for
+-- every role. Each hard-codes auth.uid() so none is an oracle about others,
+-- and search_path is pinned because an unqualified name inside a definer
+-- function is a privilege-escalation hole.
 create or replace function private.is_game_participant(p_game_id uuid)
 returns boolean
 language sql
@@ -286,18 +252,10 @@ as $$
   );
 $$;
 
--- These three are called from RLS policy expressions, which Postgres evaluates
--- with the privileges of the role running the query. So `authenticated` needs
--- USAGE on the schema and EXECUTE on each function, or every policy fails with
--- "permission denied". Revoking them (as the generic advice suggests) would
--- break the whole schema.
---
--- What keeps them safe instead:
---   * `private` is absent from config.toml api.schemas, so PostgREST cannot
---     expose them as RPC endpoints — they are unreachable over the Data API.
---   * each body hard-codes (select auth.uid()), so calling one directly tells
---     you only about your own membership. There is no argument that makes one
---     answer a question about somebody else.
+-- Policies run with the caller's privileges, so `authenticated` MUST keep
+-- USAGE and EXECUTE here or every policy fails with "permission denied" —
+-- revoking them, as generic advice suggests, breaks the whole schema. Safe
+-- because `private` is not in api.schemas and each body hard-codes auth.uid().
 revoke all on function private.is_game_participant(uuid)        from public;
 revoke all on function private.is_game_owner(uuid)              from public;
 revoke all on function private.round_is_revealed(uuid, integer)  from public;
@@ -331,15 +289,11 @@ create policy games_insert_own on public.games
 for insert to authenticated
 with check ( owner_id = (select auth.uid()) );
 
--- Anonymous guests join and vote; they never own. RESTRICTIVE so it ANDs with
--- the policy above — a permissive policy would be OR-ed away and do nothing.
--- This is also what guarantees owner_id is always a durable identity, which is
--- what makes the anonymous-user cleanup cascade safe.
---
--- `is distinct from 'true'` rather than a boolean cast: a missing or malformed
--- claim degrades to "permanent" instead of raising 22P02 inside a policy.
--- The select wraps the FUNCTION CALL, not the whole expression, so auth.jwt()
--- is hoisted into an InitPlan and evaluated once rather than per row.
+-- Guests join and vote but never own. RESTRICTIVE so it ANDs with the policy
+-- above; permissive would be OR-ed away and do nothing. This is what keeps
+-- owner_id a durable identity, and what makes the guest cleanup sweep safe.
+-- `is distinct from 'true'` so a malformed claim degrades to "permanent"
+-- instead of raising 22P02 inside a policy.
 create policy games_insert_not_anonymous on public.games
 as restrictive for insert to authenticated
 with check ( ((select auth.jwt()) ->> 'is_anonymous') is distinct from 'true' );
@@ -416,33 +370,18 @@ for delete to authenticated
 using ( user_id = (select auth.uid()) );
 
 
--- ---------------------------------------------------------------------------
--- 8. Grants — least privilege, per column.
---
--- This layer does as much security work as the policies, and it runs first.
--- Note what is absent: slug, round, status, estimate, closed_at, closed_reason,
--- round_started_at and round_ends_at are in NO grant. That — not a policy
--- predicate — is what stops a participant flipping the round early. There is
--- no statement a client can send that writes them.
---
--- Likewise owner_id and user_id have `default auth.uid()` and appear in no
--- insert grant, so a client physically cannot name another user, before RLS is
--- even consulted.
---
--- Since 2026-04-28 new public tables are not auto-exposed to the Data API, so
--- these grants are required, not belt-and-braces.
--- ---------------------------------------------------------------------------
+-- 8. Grants — least privilege, per column. This runs BEFORE policies and does
+-- as much of the work. What is absent is the point: slug, round, status,
+-- estimate, closed_* and round_*_at are in no grant, which is what stops a
+-- participant flipping the round. owner_id and user_id default to auth.uid()
+-- and appear in no insert grant, so no client can name another user.
 grant usage on schema public to authenticated;
 
--- REVOKE FIRST. This is not defensive tidying — it is load-bearing.
---
--- Supabase ships `alter default privileges ... grant all on tables to anon,
--- authenticated, service_role`, so the moment these tables were created,
--- `authenticated` already held table-wide INSERT/UPDATE/DELETE on every
--- column — status, round, estimate, slug and owner_id included. Column-level
--- grants only ever ADD privileges, so without these revokes the per-column
--- lists below are no-ops and the "no client can write status" guarantee
--- silently does not exist. A pgTAP assertion covers this exact regression.
+-- REVOKE FIRST — load-bearing, not tidying. Supabase's default privileges
+-- already gave `authenticated` table-wide write on every column at creation,
+-- and column grants only ADD. Without these revokes the per-column lists below
+-- are no-ops and "no client can write status" silently does not hold. A pgTAP
+-- assertion covers this exact regression.
 revoke all on public.games             from anon, authenticated;
 revoke all on public.game_participants from anon, authenticated;
 revoke all on public.votes             from anon, authenticated;
@@ -513,14 +452,10 @@ as $$
    where u.id = p_user_id;
 $$;
 
--- THE single place a round is allowed to close, so the estimate rule and the
--- flip payload cannot drift between the automatic and manual paths.
---
--- `where status = 'voting' ... for update` makes it idempotent under
--- concurrency: if another transaction closed and committed, FOR UPDATE
--- re-reads the latest row version, re-checks the predicate, finds nothing and
--- returns. That is what lets N racing countdown timers all call close_round
--- harmlessly.
+-- THE single place a round closes, so the estimate rule and flip payload
+-- cannot drift between the automatic and manual paths. `where status =
+-- 'voting' ... for update` makes it idempotent: FOR UPDATE re-reads, re-checks
+-- and finds nothing, so N racing countdown timers all call this harmlessly.
 create or replace function private.close_round_locked(p_game_id uuid, p_reason text)
 returns void
 language plpgsql
@@ -770,16 +705,10 @@ create trigger games_before_insert
 before insert on public.games
 for each row execute function private.poko_games_before_insert();
 
--- A game always has its owner at the table.
---
--- Votes hang off a seat, not off an account, so without this the person who
--- created the game could not vote in it — they would have to follow their own
--- invite link first. Doing it here rather than in the application keeps
--- "created it" and "is seated at it" from ever drifting apart, and puts both
--- writes in one transaction.
---
--- Must be security definer: game_participants has no INSERT policy and no
--- INSERT grant, because join_game is otherwise the only door in.
+-- A game always seats its owner: votes hang off a seat, so otherwise the
+-- creator would have to follow their own invite link to vote. Here rather than
+-- in the app so "created it" and "seated at it" cannot drift, in one
+-- transaction. Security definer because join_game is otherwise the only door.
 create or replace function private.poko_games_after_insert()
 returns trigger
 language plpgsql
@@ -836,15 +765,10 @@ after insert or update or delete on public.game_participants
 for each row execute function private.poko_participants_after();
 
 
--- ---------------------------------------------------------------------------
--- 10. Public RPCs.
---
--- Each: reject anon, lock the game row, authorise, validate state, act.
--- These are the only security-definer functions in an exposed schema, so each
--- is explicitly revoked from PUBLIC/anon and granted to authenticated only —
--- Postgres grants EXECUTE to PUBLIC by default, which would otherwise make
--- them callable without a session.
--- ---------------------------------------------------------------------------
+-- 10. Public RPCs. Each: reject anon, lock the row, authorise, validate, act.
+-- The only security-definer functions in an exposed schema, so each is revoked
+-- from PUBLIC/anon — Postgres grants EXECUTE to PUBLIC by default, which would
+-- make them callable without a session.
 
 -- Possession of the slug IS the invitation, and there is no RLS formulation of
 -- "you may read the row whose slug you can name" — hence this function. It is
@@ -1043,17 +967,10 @@ grant execute on function public.reopen_round(uuid)       to authenticated;
 grant execute on function public.set_estimate(uuid, text) to authenticated;
 
 
--- ---------------------------------------------------------------------------
--- 11. Realtime authorization.
---
--- Postgres Changes payloads are filtered by RLS on the source table. Broadcast
--- and Presence are NOT — they authorise here, via RLS on realtime.messages,
--- together with `private: true` on the client.
---
--- Policies only: the realtime schema has been locked down since 2026-07-14, so
--- nothing may be created inside it. RLS is already enabled on that table by
--- Supabase — do not ALTER it.
--- ---------------------------------------------------------------------------
+-- 11. Realtime authorization. Postgres Changes are RLS-filtered at the source;
+-- Broadcast and Presence are NOT, and authorise here via realtime.messages
+-- plus `private: true` on the client. Policies only — the realtime schema is
+-- locked down and RLS is already enabled on that table. Do not ALTER it.
 create or replace function private.can_use_game_topic(p_topic text)
 returns boolean
 language plpgsql

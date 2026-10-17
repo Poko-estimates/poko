@@ -1,29 +1,20 @@
 -- Blind voting, round lifecycle, per-user ordering, and the grant boundary.
+-- Every assertion maps to a way this schema could fail SILENTLY — correct
+-- code, no error, wrong data visible. Run with `pnpm db test:db`.
 --
--- Every assertion here maps to a specific way this schema could fail SILENTLY
--- — correct-looking code, no error, wrong data visible. Run with:
+-- pg_temp.act_as() sets the role and JWT claims auth.uid() reads, so RLS is
+-- exercised as the roles that matter rather than as postgres.
 --
---   pnpm db test:db
---
--- Each pg_temp.act_as() call impersonates a signed-in user by setting the role
--- and the JWT claims auth.uid() reads, which is how RLS gets exercised as the
--- roles that matter rather than as postgres.
---
--- Two structural notes, both learned the hard way:
---
---   * The slug and id are captured with \gset while the OWNER can see the
---     issue, then passed around as literals. Not a convenience: someone who
---     has not joined cannot read the issue row at all, so they could never
---     look the slug up. They know it because it was in the link they were sent
---     — which is exactly why join_issue() has to be security definer.
---   * With two seats, the second vote AUTO-CLOSES the round. So anything that
---     needs an open round has to happen while only one seat has voted.
+-- Two traps: the slug is captured with \gset while the OWNER can see it,
+-- because nobody else can read the row to look it up (which is why join_issue
+-- is security definer); and with two seats the SECOND vote auto-closes the
+-- round, so anything needing an open round runs with one seat voted.
 
 begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(131);
+select plan(123);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Three permanent users and one guest, created as postgres.
@@ -319,15 +310,10 @@ select is(
 );
 
 
--- ---------------------------------------------------------------------------
--- ROUND 3 — a seat leaving can be what completes a round
---
--- Three seats here on purpose. poko_maybe_auto_close requires seats >= 2, so a
--- room that drops to a single seat deliberately stays open: that state is
--- indistinguishable from a solo owner waiting for the team to arrive, and
--- auto-closing it would be wrong. The hang case that DOES need handling is a
--- room of three where the last holdout walks out.
--- ---------------------------------------------------------------------------
+-- ROUND 3 — a seat leaving can complete a round. Three seats on purpose:
+-- auto-close needs seats >= 2, so a room dropping to one stays open (that is
+-- indistinguishable from a solo owner waiting). The case that needs handling
+-- is a room of three where the last holdout walks out.
 select pg_temp.act_as(:'guest_id', true);
 select public.join_issue(:'issue_slug', 'Guest');
 
@@ -515,14 +501,8 @@ select lives_ok(
 );
 
 
--- ---------------------------------------------------------------------------
--- The round's length is chosen when it starts
---
--- The duration used to be picked in the create dialog and stored on the issue.
--- It is now an argument to start_round(), and no longer writable by a client
--- at all — so these cover both halves: that the length arrives with the call,
--- and that it cannot arrive any other way.
--- ---------------------------------------------------------------------------
+-- The round's length is chosen when it starts. Both halves: that the length
+-- arrives with start_round(), and that it cannot arrive any other way.
 select pg_temp.act_as(:'owner_id');
 
 insert into public.issues (name, deck_name, deck_values)
@@ -636,14 +616,9 @@ select is(
 );
 
 
--- ---------------------------------------------------------------------------
--- Your list order is yours
---
--- The whole reason issue_order is keyed on the user and written through an RPC
--- rather than being a column on `issues`: the list you drag includes issues
--- you only have a seat at, so ordering has to be a private preference that
--- nobody else's drag can move.
--- ---------------------------------------------------------------------------
+-- Your list order is yours. The reason issue_order is keyed on the user: the
+-- list you drag includes issues you only sit at, so ordering is a private
+-- preference nobody else's drag can move.
 select pg_temp.act_as(:'owner_id');
 
 select throws_ok(
@@ -706,15 +681,9 @@ select is(
 );
 
 
--- ---------------------------------------------------------------------------
--- Holding the clock: pause, resume, stop and reset
---
--- Pausing is stored as the INSTANT of the pause, so while it is held
--- `round_ends_at` sits in the past. Everything that reads "has the deadline
--- passed?" therefore has to ask "and is it not paused?" first — and the two
--- places that do are the whole risk in this feature, so both are asserted
--- directly rather than inferred from the happy path.
--- ---------------------------------------------------------------------------
+-- Holding the clock. Pausing stores the INSTANT, so `round_ends_at` sits in
+-- the past while held — the two places reading "has the deadline passed?" are
+-- the whole risk, so both are asserted directly, not inferred.
 select pg_temp.act_as(:'owner_id');
 
 insert into public.issues (name, deck_name, deck_values)
@@ -1023,14 +992,8 @@ select lives_ok(
 );
 
 
--- ---------------------------------------------------------------------------
--- Deleting a sprint, and what becomes of what was in it
---
--- delete_sprint() is two writes in one transaction, and the three dispositions
--- differ by whether the issues survive. Each gets its own sprint here, because
--- an assertion that shares one with another would be asserting against
--- whatever the previous branch left behind.
--- ---------------------------------------------------------------------------
+-- Deleting a sprint. Each disposition gets its OWN sprint, because sharing
+-- one would assert against whatever the previous branch left behind.
 select pg_temp.act_as(:'owner_id');
 
 -- 'move': the issues change sprint, the sprint goes.
@@ -1164,15 +1127,9 @@ select isnt_empty(
 );
 
 
--- ---------------------------------------------------------------------------
--- Clearing your issues in bulk cannot reach anyone else's
---
--- The sidebar's "clear voted" / "clear all" are plain filtered deletes, leaning
--- on issues_delete_owner to scope them rather than naming owner_id as the
--- authority. This is that assumption, asserted: the list you clear from shows
--- issues you merely have a seat at, and a filter that matches them must still
--- come away with nothing.
--- ---------------------------------------------------------------------------
+-- Bulk clear cannot reach anyone else's. The sidebar's deletes lean on
+-- issues_delete_owner to scope them, and the list includes issues you only sit
+-- at — so a filter matching those must still come away with nothing.
 select pg_temp.act_as(:'owner_id');
 
 insert into public.issues (name, deck_name, deck_values)
@@ -1209,17 +1166,10 @@ select isnt_empty(
 );
 
 
--- ---------------------------------------------------------------------------
--- An issue with votes can still be deleted
---
--- Deleting an issue cascades to its votes, which fires the BEFORE DELETE guard
--- while the parent row is already gone. Without a branch for that, deleting
--- any issue that had ever been voted in would fail — and so would deleting a
--- user, which cascades to the issues they own.
--- ---------------------------------------------------------------------------
--- A participant deleting is not an error, it simply matches no rows — which
--- is why the action checks the returned count rather than trusting a silent
--- success.
+-- An issue with votes can still be deleted: the cascade fires the BEFORE
+-- DELETE guard with the parent already gone, and without a branch for that,
+-- deleting any voted issue — or any user owning one — would fail. A
+-- participant deleting matches no rows, hence the action checks the count.
 select pg_temp.act_as(:'player_id');
 delete from public.issues where id = :'issue_id'::uuid;
 
@@ -1279,73 +1229,6 @@ select is(
   private.can_use_issue_topic('game:' || :'issue_id'),
   false,
   'the old game: topic prefix no longer authorises anything'
-);
-
--- ---------------------------------------------------------------------------
--- The contact form's inbox is write-only
---
--- It is the one table on the internet's side of the fence: `anon` can write to
--- it. Every assertion here is about the other half of that bargain — that
--- nobody with a session can read, change or remove what strangers sent.
--- ---------------------------------------------------------------------------
-select pg_temp.act_as(:'owner_id');
-
-select lives_ok(
-  $$ insert into public.contact_messages (name, email, message, privacy_accepted)
-     values ('Ama Owner', 'ama@example.com', 'The timer is great.', true) $$,
-  'a signed-in visitor can send a message'
-);
-
--- The consent is a column, not a promise the form makes. A message without it
--- cannot be stored however the request arrived.
-select throws_ok(
-  $$ insert into public.contact_messages (name, email, message, privacy_accepted)
-     values ('Sneaky', 'sneaky@example.com', 'No consent here.', false) $$,
-  23514, null,
-  'a message cannot be stored without the privacy box ticked'
-);
-
-select throws_ok(
-  $$ insert into public.contact_messages (email, message, privacy_accepted)
-     values ('not-an-address', 'Hello.', true) $$,
-  23514, null,
-  'a value that could not be an email address is rejected'
-);
-
--- THE point of the table. There is no SELECT policy and no SELECT grant, so
--- reading it fails on the missing privilege before RLS is even consulted.
-select throws_ok(
-  $$ select 1 from public.contact_messages $$,
-  42501, null,
-  'nobody with a session can read the inbox — not even their own message'
-);
-
-select throws_ok(
-  $$ update public.contact_messages set message = 'edited' $$,
-  42501, null,
-  'and nobody can edit what was sent'
-);
-
-select throws_ok(
-  $$ delete from public.contact_messages $$,
-  42501, null,
-  'nor delete it'
-);
-
--- user_id is in no grant, so a sender cannot pin their message on someone
--- else. It comes from auth.uid() or it is null.
-select throws_ok(
-  format($$ insert into public.contact_messages (email, message, privacy_accepted, user_id)
-            values ('x@example.com', 'Pinned on you.', true, %L) $$, :'player_id'),
-  42501, null,
-  'a sender cannot attribute their message to another account'
-);
-
-select pg_temp.act_as_postgres();
-select is(
-  (select user_id from public.contact_messages where email = 'ama@example.com'),
-  :'owner_id'::uuid,
-  'a signed-in sender is recorded from auth.uid(), not from the payload'
 );
 
 select * from finish();

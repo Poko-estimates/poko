@@ -65,18 +65,9 @@ export async function createIssue(
 }
 
 /**
- * Turns the sprint field's text into a sprint id, creating the sprint if this
- * is the first time that name has been used.
- *
- * The form can only report a NAME — its combobox offers to add whatever you
- * typed — so the find-or-create lives here, next to the unique index that
- * makes it safe.
- *
- * Look first, then insert, then look again. That last step is not belt and
- * braces: two issues submitted for a brand-new sprint at once both miss the
- * lookup, and the one that loses the race gets 23505 rather than a row. The
- * re-read turns that into the sprint the winner just made, which is exactly
- * what the loser wanted — the same insert-then-fall-back shape as `castVote`.
+ * Turns the sprint field's text into a sprint id, creating it on first use.
+ * Look, insert, then look AGAIN: two issues naming the same new sprint race,
+ * and the loser gets 23505 rather than a row. The re-read hands it the winner's.
  */
 async function resolveSprint(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -112,14 +103,8 @@ async function resolveSprint(
 }
 
 /**
- * The caller's sprint with this name, matched the way the unique index does —
- * ignoring case.
- *
- * Matched in TypeScript over the caller's own sprints rather than with an
- * `ilike` filter, because `ilike` would read `%` and `_` in a sprint name as
- * wildcards: a sprint called "Q3 (80% capacity)" would match things it isn't.
- * RLS plus the owner filter keeps the list to one person's own sprints, so
- * there is very little to scan.
+ * Matched in TypeScript, not with `ilike`: a sprint called "Q3 (80% capacity)"
+ * would have its `%` and `_` read as wildcards. RLS keeps the list tiny.
  */
 async function findSprint(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -148,13 +133,9 @@ async function findSprint(
 }
 
 /**
- * Puts your card down, or moves it if you already had one.
- *
- * Everything that decides whether this is legal right now — round still open,
- * deadline not passed, value actually in the deck, round not reopened
- * underneath you — lives in the guard trigger, which raises a distinct `hint`
- * for each case. That is deliberate: those are expected, user-facing
- * conditions, not authorization failures.
+ * Puts your card down, or moves it. Every legality check — round open,
+ * deadline, value in deck — lives in the guard trigger, which raises a
+ * distinct `hint` per case rather than an authorization failure.
  */
 export async function castVote(
   issueId: string,
@@ -163,16 +144,10 @@ export async function castVote(
 ): Promise<IssueResult> {
   const supabase = await createClient()
 
-  // Insert first, then fall back to an update, rather than one upsert.
-  //
-  // PostgREST's ON CONFLICT DO UPDATE assigns every column in the payload, so
-  // an upsert needs UPDATE on issue_id and round as well as value — and the
-  // client deliberately only holds UPDATE on `value`, so that a card can never
-  // be moved to a different round or a different issue. One extra round trip
-  // when changing your mind is the right price for that narrower grant.
-  //
-  // user_id is absent from both calls on purpose: it defaults to auth.uid()
-  // and the client holds no grant on it, so nobody can vote as someone else.
+  // Insert then fall back to update, not an upsert: PostgREST's ON CONFLICT
+  // assigns every column in the payload, so an upsert would need UPDATE on
+  // issue_id and round too — the client deliberately only holds `value`.
+  // user_id is absent from both: it defaults to auth.uid() with no grant.
   const insert = await supabase
     .from("votes")
     .insert({ issue_id: issueId, round, value })
@@ -222,15 +197,9 @@ export async function retractVote(
 }
 
 /**
- * Edits an issue's name, summary, deck or timebox.
- *
- * Only the columns the client holds a grant on — status, round, estimate and
- * slug are not among them, so this cannot move the round. Owner-only, via the
- * `issues_update_owner` policy.
- *
- * Changing the deck once cards are down is refused by the
- * `poko_issues_before_update` trigger, not by a check here, so it holds however
- * the update arrives.
+ * Edits name, summary, deck or timebox — only columns the client has a grant
+ * on, so this cannot move the round. Changing the deck once cards are down is
+ * refused by the `poko_issues_before_update` trigger, however the update arrives.
  */
 export async function updateIssue(
   issueId: string,
@@ -267,12 +236,9 @@ export async function updateIssue(
 }
 
 /**
- * Deletes an issue and everything hanging off it — seats, every round's cards,
- * and everyone's ordering of it — in one cascade. There is no undo and no soft
- * delete, which is why the UI puts a confirmation in front of it.
- *
- * Owner only, enforced by the `issues_delete_owner` policy rather than checked
- * here: a participant calling this simply matches no rows.
+ * Cascades to seats, every round's cards and everyone's ordering. No undo,
+ * hence the confirmation. Owner-only via `issues_delete_owner` — a participant
+ * calling this matches no rows.
  */
 export async function deleteIssue(issueId: string): Promise<IssueResult> {
   const supabase = await createClient()
@@ -296,17 +262,10 @@ export async function deleteIssue(issueId: string): Promise<IssueResult> {
 }
 
 /**
- * Refiles one issue, or takes it out of every sprint when `sprintId` is null.
- *
- * A focused action rather than a trip through `updateIssue`: that one takes a
- * whole draft and would need the row's deck and timebox echoed back just to
- * change which sprint it sits in — and re-sending the deck is exactly the
- * thing the closed-issue freeze and the deck-locked guard would then refuse.
- *
- * Owner-only via `issues_update_owner`, and the `poko_issues_before_update`
- * trigger is what checks the destination is yours. Moving a CLOSED issue is
- * allowed on purpose: filing a settled estimate under the right sprint is
- * housekeeping, not a rewrite of the round.
+ * Refiles one issue, or unfiles it when `sprintId` is null. Focused rather
+ * than a trip through `updateIssue`, which would echo the deck back and trip
+ * the deck-locked guard. Moving a CLOSED issue is allowed: filing a settled
+ * estimate is housekeeping, not a rewrite.
  */
 export async function moveIssueToSprint(
   issueId: string,
@@ -344,12 +303,9 @@ export type DeleteSprintResult = IssueResult & {
 }
 
 /**
- * Deletes a sprint, having been told what becomes of what was in it.
- *
- * One RPC rather than two calls, because every disposition is "do something to
- * the issues, THEN drop the sprint" — and a client doing that in two steps can
- * be interrupted between them, leaving issues already moved or already deleted
- * while the sprint they came from still stands.
+ * One RPC, not two calls: every disposition is "do something to the issues,
+ * THEN drop the sprint", and a client interrupted between them leaves issues
+ * moved or deleted while the sprint still stands.
  */
 export async function deleteSprint(
   sprintId: string,
@@ -393,20 +349,10 @@ export type ClearIssuesResult = IssueResult & {
 }
 
 /**
- * Clears your issues in one go — either the ones that have been voted on, or
- * the lot.
- *
- * An ordinary filtered delete rather than a security-definer routine: the
- * `issues_delete_owner` policy already narrows this to issues you own, so a
- * bulk delete can only ever reach your own rows. Issues you merely have a seat
- * at match nothing and are silently left alone, which is the behaviour we
- * want — and it is the same policy the single-row delete leans on, rather than
- * a second, parallel rule that could drift from it.
- *
- * `owner_id` is in the filter as well, even though the policy makes it
- * redundant. PostgREST refuses an unfiltered delete, so this needs SOME
- * predicate, and "mine" is the honest one to write: it says in the query what
- * the UI promises.
+ * Bulk delete rather than a security-definer routine: `issues_delete_owner`
+ * already narrows this to your own rows, so issues you merely sit at match
+ * nothing. `owner_id` is in the filter too because PostgREST refuses an
+ * unfiltered delete.
  */
 export async function clearIssues(
   scope: ClearScope
@@ -438,17 +384,9 @@ export async function clearIssues(
 }
 
 /**
- * Stores the order you just dragged your list into.
- *
- * Takes the whole list rather than "move this one to index N": the panel
- * already knows the order it is rendering, one statement is atomic where a
- * read-modify-write pair is not, and it means a list that has drifted for any
- * reason is repaired by the next drop.
- *
- * The order is yours alone — `issue_order` is keyed on the viewer — so this is
- * safe to call for issues you merely have a seat at. `reorder_issues` drops
- * any id you cannot see rather than refusing the call, so a stale tab still
- * saves the rest of its order.
+ * Takes the whole list, not "move this to index N": one statement is atomic
+ * where read-modify-write is not, and a drifted list is repaired by the next
+ * drop. `reorder_issues` drops ids you cannot see, so a stale tab still saves.
  */
 export async function reorderIssues(
   issueIds: string[]
@@ -466,16 +404,9 @@ export async function reorderIssues(
 }
 
 /**
- * Starts the round's clock, for however long the facilitator asked for.
- *
- * The length arrives here rather than having been chosen in the create dialog:
- * how long a story is worth arguing about is only knowable with the story in
- * front of you, and a number picked days earlier in a form is one nobody
- * remembers agreeing to.
- *
- * The bounds are re-checked inside `start_round` — a server action is a public
- * endpoint — and a clock that is already running is left alone, so this cannot
- * be called again to buy the round more time.
+ * The length arrives here, not from the create dialog, because it is only
+ * knowable with the story in front of you. Bounds are re-checked in
+ * `start_round`, and a running clock is left alone — no buying more time.
  */
 export async function startRound(
   issueId: string,
@@ -575,18 +506,10 @@ export async function reopenRound(issueId: string): Promise<IssueResult> {
 }
 
 /**
- * Takes a seat at an issue from its invite link.
- *
- * Possession of the slug is the invitation — there is no RLS formulation of
- * "you may read the row whose slug you can name" — so joining goes through the
- * `join_issue` function rather than a direct insert. It is idempotent, so
- * re-opening the link is harmless.
- *
- * This runs as a server action rather than in the browser on purpose: the
- * session cookie set by `signInAnonymously` goes out on this response, so the
- * next request renders as a participant. Signing in from the browser would
- * leave the already-rendered server tree stale and open a window where the
- * browser holds a session the server doesn't know about.
+ * Possession of the slug IS the invitation, which RLS cannot express, so this
+ * goes through `join_issue`. A server action rather than the browser: the
+ * cookie `signInAnonymously` sets rides this response, so the next request
+ * renders as a participant instead of against a stale tree.
  */
 export async function joinRoom(
   slug: string,
@@ -633,12 +556,8 @@ export async function joinRoom(
 }
 
 /**
- * Re-renders the dashboard so the server's view of the round wins.
- *
- * Needed on the vote path today because a card can close the round out from
- * under the person who played it. Step 6 replaces this with the realtime
- * broadcast, which tells every client at once instead of only the one that
- * acted.
+ * Re-renders the dashboard so the server's view wins — a card can close the
+ * round out from under the person who played it.
  */
 function revalidateIssue() {
   revalidatePath("/dashboard")
@@ -726,12 +645,8 @@ function normaliseDeckValues(values: string[]) {
 }
 
 /**
- * Postgres and PostgREST errors are terse and leak schema detail; give the ones
- * a user can actually hit real copy. Same shape as `describe()` in
- * `lib/auth/actions.ts`.
- *
- * The `hint` values come from the guard triggers in the migration, which set
- * them precisely so the client can branch without parsing prose.
+ * Postgres errors are terse and leak schema detail. The `hint` values come
+ * from the guard triggers, set so the client can branch without parsing prose.
  */
 function describe(error: { code?: string; hint?: string | null; message: string }) {
   switch (error.hint) {

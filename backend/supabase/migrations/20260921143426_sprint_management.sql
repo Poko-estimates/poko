@@ -1,25 +1,17 @@
--- Deleting a sprint, and deciding what becomes of what was in it.
---
--- A sprint is a container, so deleting one is really two decisions: lose the
--- sprint, and do WHAT with its issues. The sidebar asks before it acts, and
--- this is the routine that carries out the answer:
+-- Deleting a sprint, and deciding what becomes of what was in it:
 --
 --   'uncategorize'  the issues stay, and fall into Uncategorized
 --   'move'          the issues go to another of your sprints
 --   'delete'        the issues go too, with every card played in them
 --
--- Why an RPC rather than the two statements the client could send itself: each
--- answer is "do something to the issues, THEN drop the sprint", and a client
--- doing that in two calls can be interrupted between them — leaving issues
--- already moved or already deleted while the sprint they came from is still
--- standing. One function is one transaction, so the pair either both happen or
--- neither does.
+-- An RPC rather than two client statements because each answer is "do
+-- something to the issues, THEN drop the sprint", and a client interrupted
+-- between them leaves issues moved or deleted while the sprint still stands.
+-- One function is one transaction.
 --
--- It also puts the rules where they cannot be skipped: that the sprint is
--- yours, that a move names a different sprint which is also yours, and that
--- 'delete' really was asked for rather than arrived at by a typo in the
--- disposition. A server action is a public endpoint, and this one is the most
--- destructive in the app.
+-- It also puts the rules where they cannot be skipped — the sprint is yours, a
+-- move names a different sprint also yours, and 'delete' was really asked for.
+-- A server action is a public endpoint, and this is the most destructive one.
 
 create function public.delete_sprint(p_sprint_id uuid,
                                      p_issues text,
@@ -74,15 +66,10 @@ begin
         using errcode = '42501', hint = 'poko_sprint_not_yours';
     end if;
 
-    -- `where sprint_id = p_sprint_id` cannot reach anybody else's issues:
-    -- poko_issue_sprint_is_owned only ever lets an issue into a sprint with
-    -- the same owner, so everything in this sprint belongs to the caller.
-    -- That invariant is what makes an unfiltered-by-owner update safe here.
-    --
-    -- The before-update trigger still fires, which is the point: it re-checks
-    -- that the destination is the issue owner's. Moving a CLOSED issue is
-    -- allowed on purpose — filing a settled estimate is housekeeping, not a
-    -- rewrite of the round.
+    -- Safe without an owner filter: poko_issue_sprint_is_owned only ever lets
+    -- an issue into a sprint with the same owner, so everything here is the
+    -- caller's. The before-update trigger still fires and re-checks the
+    -- destination. Moving a CLOSED issue is allowed — that is housekeeping.
     update public.issues
        set sprint_id = p_target_sprint_id
      where sprint_id = p_sprint_id;

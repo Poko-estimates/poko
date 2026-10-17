@@ -10,7 +10,6 @@ const productLinks = [
   { label: "Integrations", href: "/integrations" },
   { label: "Changelog", href: "/changelog" },
   { label: "About", href: "/about" },
-  { label: "Contact", href: "/contact" },
 ]
 
 const legalLinks = [

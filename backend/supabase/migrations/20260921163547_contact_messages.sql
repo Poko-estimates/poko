@@ -1,22 +1,15 @@
--- The contact form's inbox.
+-- The contact form's inbox. (Retired in 20261016220727 — the contact page is
+-- now a mailto.)
 --
--- A WRITE-ONLY table, and that is the whole design. The form is public, so
--- `anon` has to be able to insert — and a table that anyone on the internet
--- can write to is a table nobody should be able to read back over the API. So
--- there is an INSERT policy and no SELECT, UPDATE or DELETE policy at all, and
--- no SELECT grant to go with them.
+-- A WRITE-ONLY table, deliberately: the form is public so `anon` must insert,
+-- and a table anyone on the internet can write to is one nobody should read
+-- back over the API. INSERT policy only, no SELECT/UPDATE/DELETE policy and no
+-- SELECT grant. So messages are read in Studio, and the server action must NOT
+-- `.select()` — `insert ... returning` is gated by the missing SELECT policy
+-- and would 403 every successful submission.
 --
--- Two things follow from that, both deliberate:
---
---   * Messages are read in Studio or with the service key, never through a
---     session. Nothing in the app reads this table.
---   * The server action must not ask for the row back. `insert ... returning`
---     is gated by the SELECT policy, and with no policy to satisfy, adding a
---     `.select()` would turn every successful submission into a 403.
---
--- Consent is a column with a CHECK rather than something the form promises:
--- `privacy_accepted` must be true, so a message that was sent without the box
--- ticked cannot be stored at all, however the request arrived.
+-- Consent is a column with a CHECK, not a promise the form makes: a message
+-- sent without the box ticked cannot be stored, however the request arrived.
 
 create table public.contact_messages (
   id               uuid primary key default gen_random_uuid(),

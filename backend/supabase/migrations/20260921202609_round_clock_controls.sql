@@ -1,37 +1,19 @@
--- Pause, resume, stop and reset for the round's clock.
+-- Pause, resume, stop and reset for the round's clock — a countdown used to be
+-- a one-way trip from start to expiry, which is not how refinement goes.
 --
--- A running countdown was previously a one-way trip: it started and it
--- expired. Real refinement does not work like that — someone asks a question,
--- a call drops, the story turns out to need splitting — so the facilitator
--- needs to hold the clock without ending the round.
---
--- ---------------------------------------------------------------------------
--- HOW PAUSING IS REPRESENTED
---
--- `round_ends_at` stays the authority and is never recalculated on pause. What
--- is recorded instead is the INSTANT of the pause, in `round_paused_at`, and
--- resuming pushes the deadline forward by however long the pause lasted:
+-- `round_ends_at` stays the authority and is never recalculated. The pause
+-- INSTANT is stored in `round_paused_at`, and resuming adds the elapsed pause:
 --
 --     round_ends_at := round_ends_at + (now() - round_paused_at)
 --
--- Storing a "remaining seconds" instead would have meant two sources of truth
--- for the same fact, and a rounding error every time the clock changed hands.
--- This way the remaining time is derived, always, from the two timestamps.
+-- Storing "remaining seconds" would be a second source of truth and a rounding
+-- error per handover. The consequence: while paused, `round_ends_at` is in the
+-- past, so anything asking "has the deadline passed?" must ask "and not
+-- paused?" first. The vote guard and close_round both do, both rebuilt below,
+-- both with a pgTAP assertion.
 --
--- The consequence worth spelling out: while `round_paused_at` is set,
--- `round_ends_at` is in the past or drifting into it, and anything that reads
--- "has the deadline passed?" must ask "and is it not paused?" first. Two
--- places do: the vote guard, which would otherwise refuse votes during a
--- pause, and close_round, which would otherwise let any participant close the
--- round on the strength of an expiry that is not real. Both are rebuilt below,
--- and both have a pgTAP assertion.
---
--- STOP versus RESET versus CLOSE. Three different things, and only the last
--- one ends the voting:
---
---   stop_round   drops the clock, leaves the round open and untimed
---   reset_round  restarts the same length from now
---   close_round  ends the round (unchanged, and still its own control)
+-- stop_round drops the clock and leaves the round open; reset_round restarts
+-- the same length; close_round ends the round and is unchanged.
 
 
 -- ---------------------------------------------------------------------------
@@ -277,16 +259,10 @@ grant execute on function public.stop_round(uuid)   to authenticated;
 grant execute on function public.reset_round(uuid)  to authenticated;
 
 
--- ---------------------------------------------------------------------------
--- 4. A paused round has not expired.
---
--- These two are the reason the pause representation needed explaining. Both
--- read "has the deadline passed?", and while paused `round_ends_at` sits in
--- the past — so without the extra clause, pausing a round would stop votes
--- landing and would hand any participant the authority to close it.
---
--- Only the expiry condition changes in each. Everything else is as it was.
--- ---------------------------------------------------------------------------
+-- 4. A paused round has not expired. Both of these read "has the deadline
+-- passed?", and while paused `round_ends_at` is in the past — without the
+-- extra clause, pausing would block votes and let any participant close the
+-- round. Only the expiry condition changes in each.
 create or replace function private.poko_votes_guard()
 returns trigger
 language plpgsql

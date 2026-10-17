@@ -1,42 +1,20 @@
 -- The round's length is chosen when the round starts, not when the issue is
--- created.
+-- created: you cannot know how long a story needs arguing about until you are
+-- looking at it. `start_round` now takes the length.
 --
--- Picking a timebox in the create dialog was asking the wrong question at the
--- wrong moment: you do not know how long a story needs to be argued about
--- until you are looking at it, and a number chosen days earlier in a form is
--- one nobody remembers agreeing to. So `start_round` now takes the length,
--- and the facilitator types it in the room with the issue in front of them.
---
--- That turns `round_duration_seconds` from a stored SETTING into part of the
--- round machinery — which is why the client's grants on it go away here. It
--- now moves only through start_round(), alongside `round_ends_at`, which the
--- client has never been able to write. The two are set together or not at all.
---
--- The column stays, and keeps the last length used, for one reason worth
--- naming: it is what the room prefills the input with next time. Reopening a
--- round leaves it alone, so "same again" is the default and a different answer
--- is one edit away.
+-- That makes `round_duration_seconds` round machinery rather than a stored
+-- setting, which is why the client's grants on it go away here — it now moves
+-- only through start_round(), alongside `round_ends_at`, set together or not
+-- at all. The column stays because it prefills the input next time.
 
--- ---------------------------------------------------------------------------
--- 1. The duration stops being client-writable.
---
--- Revoking a column from a grant list means re-issuing the list without it:
--- Postgres has no "remove one column" form, and a plain REVOKE of the column
--- would be the only other way. Done as a revoke of exactly that column, so
--- the rest of each list is untouched.
--- ---------------------------------------------------------------------------
+-- 1. The duration stops being client-writable. Revoked as exactly that one
+-- column, so the rest of each grant list is untouched.
 revoke insert (round_duration_seconds) on public.issues from authenticated;
 revoke update (round_duration_seconds) on public.issues from authenticated;
 
--- ---------------------------------------------------------------------------
--- 2. Starting a round, with a length.
---
--- Owner only, matching reopen_round: setting the pace is a facilitation act.
---
--- Replaces the one-argument version rather than overloading it. An overload
--- would leave the old "start with whatever was stored at creation" path alive
--- and callable, which is the behaviour being removed.
--- ---------------------------------------------------------------------------
+-- 2. Starting a round, with a length. Owner only — setting the pace is a
+-- facilitation act. REPLACES the one-argument version rather than overloading:
+-- an overload would leave the old path alive and callable.
 drop function if exists public.start_round(uuid);
 
 create function public.start_round(p_issue_id uuid, p_seconds integer)
@@ -100,14 +78,8 @@ $$;
 revoke all on function public.start_round(uuid, integer) from public, anon;
 grant execute on function public.start_round(uuid, integer) to authenticated;
 
--- ---------------------------------------------------------------------------
--- 3. The closed-issue freeze drops the duration.
---
--- It listed `round_duration_seconds` because the edit dialog could change it.
--- Nothing can now except start_round(), which already refuses on a closed
--- round — so keeping it in the list would only describe a rule that no longer
--- has anything to enforce. Every other frozen column is unchanged.
--- ---------------------------------------------------------------------------
+-- 3. The closed-issue freeze drops the duration: only start_round() can write
+-- it now, and that already refuses on a closed round.
 create or replace function private.poko_issues_before_update()
 returns trigger
 language plpgsql
