@@ -14,6 +14,7 @@ import { Footer } from "@/components/site/footer"
 import { NavBar } from "@/components/site/navbar"
 import { Reveal } from "@/components/site/reveal"
 import { buttonVariants } from "@/components/ui/button"
+import { contactMailto } from "@/lib/legal/entity"
 import { cn } from "@/lib/utils"
 
 export const metadata: Metadata = {
@@ -228,15 +229,15 @@ export default function Page() {
                       aria-hidden="true"
                     />
                   </Link>
-                  <Link
-                    href="/contact"
+                  <a
+                    href={contactMailto}
                     className={cn(
                       buttonVariants({ variant: "outline", size: "xl" }),
                       "justify-center border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white"
                     )}
                   >
                     Talk to us
-                  </Link>
+                  </a>
                 </div>
               </div>
             </Reveal>

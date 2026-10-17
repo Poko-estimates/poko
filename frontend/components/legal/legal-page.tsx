@@ -1,6 +1,6 @@
 import Link from "next/link"
 
-import { MailTo, TextLink } from "@/components/legal/prose"
+import { MailTo } from "@/components/legal/prose"
 import { Container } from "@/components/site/container"
 import { Footer } from "@/components/site/footer"
 import { NavBar } from "@/components/site/navbar"
@@ -129,8 +129,7 @@ function LegalPage({
                 <div className="flex flex-col gap-4 border-t border-border pt-8">
                   <p className="text-sm leading-relaxed text-muted-foreground">
                     Questions about this document? Write to{" "}
-                    <MailTo address={entity.privacyEmail} /> or use the{" "}
-                    <TextLink href="/contact">contact page</TextLink>.
+                    <MailTo address={entity.privacyEmail} />.
                   </p>
 
                   <ul className="flex flex-wrap gap-x-6 gap-y-2">

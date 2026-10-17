@@ -17,6 +17,13 @@ export const entity = {
 } as const
 
 /**
+ * The contact link itself, built once so the nav, footer and about page cannot
+ * drift. There is no contact page — this is the whole contact route.
+ */
+export const contactMailto =
+  `mailto:${entity.contactEmail}?subject=${encodeURIComponent("Poko — hello")}`
+
+/**
  * Kept apart from the regulators below: governing law is ours to choose, but
  * which authority hears a privacy complaint depends on where the reader lives.
  */
