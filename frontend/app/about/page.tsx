@@ -1,13 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import {
-  ArrowRight,
-  EyeOff,
-  Handshake,
-  Link2,
-  Timer,
-  Users,
-} from "lucide-react"
+import { ArrowRight, Link2 } from "lucide-react"
 
 import { Container } from "@/components/site/container"
 import { Footer } from "@/components/site/footer"
@@ -20,37 +13,29 @@ import { cn } from "@/lib/utils"
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Poko is planning poker for agile teams: blind voting the database enforces, one shared reveal, and an estimate only when the team actually agrees.",
+    "Poko is planning poker for agile teams: blind voting the database enforces, one shared reveal, and an estimate only when the team agrees.",
 }
 
 /**
- * What the product refuses to do, and why.
- *
- * Every one of these is a rule the database enforces rather than a habit the
- * interface encourages — which is the honest reason they are worth putting on
- * a page. Nothing here is aspirational: if one of them stops being true, a
- * pgTAP assertion fails.
+ * The whole product in four lines. Deliberately one sentence each — someone
+ * who reads only this should be able to picture a session.
  */
-const principles = [
+const steps = [
   {
-    icon: EyeOff,
-    title: "Blind by construction",
-    body: "Until a round closes, your card is readable by you and nobody else. That is not the screen hiding it — row-level security refuses to hand it over, so there is no request anyone can send that leaks the table early.",
+    title: "Open a room",
+    body: "Name the story, pick a deck, share one link. Guests join from the browser.",
   },
   {
-    icon: Handshake,
-    title: "One reveal, for everyone",
-    body: "Cards turn over in a single moment, broadcast to every seat at once. Nobody sees the spread a beat before anyone else, which is what makes the first reaction an honest one.",
+    title: "Everyone votes blind",
+    body: "Your card is readable by you and nobody else — the database refuses to hand it over early, so it is a rule rather than a habit.",
   },
   {
-    icon: Users,
-    title: "Unanimous or nothing",
-    body: "An estimate is recorded only when every card matches. Poko will not average a 3 and an 8 into a 5 that nobody argued for — a split vote is a prompt to talk, and it says so.",
+    title: "Reveal together",
+    body: "Cards turn over in a single moment, for every seat at once. Nobody sees the spread a beat early.",
   },
   {
-    icon: Timer,
-    title: "The clock is real",
-    body: "A timebox is enforced where the votes land, not in the browser. When the round expires it is genuinely over, even for the tab whose countdown is running slow.",
+    title: "Agree, or talk",
+    body: "Matching cards record the estimate. A split one is a prompt to discuss, never an average nobody argued for.",
   },
 ]
 
@@ -58,15 +43,15 @@ const principles = [
 const audiences = [
   {
     title: "Scrum and kanban teams",
-    body: "Refinement sessions where the point is agreeing a number, together, and getting back to the work.",
+    body: "Refinement where the point is agreeing a number and getting back to the work.",
   },
   {
-    title: "Teams spread across time zones",
-    body: "Everything runs in the browser over a shared link. Guests need no account, so nobody is blocked at the door.",
+    title: "Teams across time zones",
+    body: "Runs in the browser over a shared link. Guests need no account.",
   },
   {
     title: "Anyone tired of anchoring",
-    body: "If your estimates quietly track whoever spoke first, blind voting is the fix — and it has to be enforced to count.",
+    body: "If your estimates track whoever spoke first, blind voting is the fix.",
   },
 ]
 
@@ -88,16 +73,13 @@ export default function Page() {
                 Estimation that the loudest voice in the room can&apos;t decide
               </h1>
               <p className="mt-6 text-lg leading-relaxed text-white/70">
-                Poko is planning poker for agile teams. Everyone lays a card
-                face down, the table turns over at once, and the number only
-                sticks when the team actually agrees on it.
+                Everyone lays a card face down, the table turns over at once,
+                and the number only sticks when the team agrees.
               </p>
             </Reveal>
           </Container>
         </section>
 
-        {/* The plain-language description. Prose rather than feature bullets:
-            somebody landing here wants to know what the thing IS. */}
         <section className="border-b border-border bg-background py-16 sm:py-20">
           <Container>
             <Reveal className="grid gap-10 lg:grid-cols-[minmax(0,0.6fr)_minmax(0,1fr)] lg:gap-16">
@@ -107,68 +89,62 @@ export default function Page() {
 
               <div className="flex max-w-2xl flex-col gap-5 text-base leading-relaxed text-muted-foreground sm:text-lg">
                 <p>
-                  Planning poker is a simple idea: to estimate a piece of work,
-                  everyone commits to a number privately, and then you compare.
-                  Where the numbers differ, someone knows something the others
-                  don&apos;t, and that conversation is the real value of the
-                  exercise. The estimate is almost a side effect.
+                  Planning poker is simple: everyone commits to a number
+                  privately, then you compare. Where the numbers differ,
+                  someone knows something the others don&apos;t — and that
+                  conversation is the point.
                 </p>
                 <p>
-                  It falls apart when the privacy is only a convention. If the
-                  first number said out loud shapes every number after it, the
-                  team has held a meeting to confirm one person&apos;s guess.
-                  Most tools leave that to good manners.{" "}
+                  That only works if the cards are really hidden. In most tools
+                  they are hidden by agreement: everyone is trusted not to
+                  peek, and one number said out loud sways the rest.{" "}
                   <span className="font-medium text-primary">
-                    Poko makes it a rule the database keeps.
+                    Poko does not rely on trust. Nobody can see your card until
+                    the round ends — not even the person who set up the room.
                   </span>
-                </p>
-                <p>
-                  You create an issue, pick a deck, and share a link. Your team
-                  joins from the browser, plays a card each, and the round
-                  closes on your word or on the clock. Issues group into the
-                  sprint you&apos;re refining, so a session reads as one list
-                  rather than a pile of one-off rooms.
                 </p>
               </div>
             </Reveal>
           </Container>
         </section>
 
-        <section className="bg-surface py-16 sm:py-20">
+        <section className="border-b border-border bg-surface py-16 sm:py-20">
           <Container>
             <Reveal className="max-w-2xl">
               <h2 className="text-2xl leading-tight font-semibold tracking-tight text-primary text-balance sm:text-3xl">
-                What it refuses to do
+                How a round works
               </h2>
-              <p className="mt-4 leading-relaxed text-muted-foreground">
-                Four rules the product is built around. Each is enforced where
-                the data lives, so none of them depends on the interface
-                behaving.
-              </p>
             </Reveal>
 
-            <div className="mt-12 grid gap-5 sm:grid-cols-2">
-              {principles.map((principle) => (
+            <ol className="mt-10 grid gap-6 sm:grid-cols-2 lg:gap-8">
+              {steps.map((step, index) => (
                 <Reveal
-                  key={principle.title}
-                  className="flex flex-col rounded-3xl border border-border bg-card p-6 transition-colors hover:border-secondary/50 sm:p-7"
+                  as="li"
+                  key={step.title}
+                  delay={index * 90}
+                  className="flex gap-4 rounded-3xl border border-border bg-card p-6"
                 >
-                  <span className="flex size-11 items-center justify-center rounded-2xl bg-secondary/15 text-secondary">
-                    <principle.icon className="size-5" aria-hidden="true" />
+                  <span
+                    aria-hidden="true"
+                    className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary/15 text-sm font-semibold text-secondary tabular-nums"
+                  >
+                    {index + 1}
                   </span>
-                  <h3 className="mt-5 text-lg font-semibold tracking-tight text-primary">
-                    {principle.title}
-                  </h3>
-                  <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
-                    {principle.body}
-                  </p>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-semibold tracking-tight text-primary">
+                      {step.title}
+                    </h3>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      {step.body}
+                    </p>
+                  </div>
                 </Reveal>
               ))}
-            </div>
+            </ol>
           </Container>
         </section>
 
-        <section className="border-y border-border bg-background py-16 sm:py-20">
+        <section className="border-b border-border bg-background py-16 sm:py-20">
           <Container>
             <Reveal className="max-w-2xl">
               <h2 className="text-2xl leading-tight font-semibold tracking-tight text-primary text-balance sm:text-3xl">
@@ -195,9 +171,8 @@ export default function Page() {
                 aria-hidden="true"
               />
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Guests join a room from the invite link without making an
-                account. An account is only needed to create issues and keep
-                them between sessions.
+                Guests join from the invite link without an account. You only
+                need one to create issues and keep them between sessions.
               </p>
             </Reveal>
           </Container>
