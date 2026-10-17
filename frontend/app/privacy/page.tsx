@@ -20,7 +20,7 @@ import {
 export const metadata: Metadata = {
   title: "Privacy policy",
   description:
-    "What Poko collects when you estimate with your team, why we hold it, how long we keep it, and the rights you have over it under the GDPR and Ghana's Data Protection Act.",
+    "What Poko collects, why we hold it, how long we keep it, and the rights you have over it under the GDPR and Ghana's Data Protection Act.",
 }
 
 const sections: readonly LegalSection[] = [
@@ -30,18 +30,15 @@ const sections: readonly LegalSection[] = [
     body: (
       <>
         <P>
-          Poko is a planning poker tool for agile teams. It is operated by the{" "}
-          <Term>{entity.name}</Term> team, who are the data controller for the
-          personal data described here — meaning we decide what is collected and
-          why, and we are the ones answerable for it. Reach us at{" "}
-          <MailTo address={entity.privacyEmail} />.
+          Poko is a planning poker tool for agile teams, run by the{" "}
+          <Term>{entity.name}</Term> team. We decide what gets collected and
+          why, which makes us the data controller — and the ones answerable for
+          it. Write to <MailTo address={entity.email} /> about anything
+          on this page.
         </P>
         <P>
-          This policy is written to satisfy both the EU and UK General Data
-          Protection Regulation and Ghana&apos;s Data Protection Act, 2012 (Act
-          843). Where the two use different words for the same idea we have used
-          the GDPR&apos;s, and the rights set out under{" "}
-          <TextLink href="#your-rights">Your rights</TextLink> exist under both.
+          This policy covers the EU and UK GDPR and Ghana&apos;s Data Protection
+          Act, 2012 (Act 843). Your rights are the same under both.
         </P>
       </>
     ),
@@ -52,171 +49,78 @@ const sections: readonly LegalSection[] = [
     body: (
       <>
         <P>
-          Poko collects what it needs to run a round of planning poker, and
-          nothing gathered on spec. There is no analytics service, no
-          advertising network and no third-party tracker anywhere on this site —
+          Only what it takes to run a round of planning poker. There is no
+          analytics, no advertising and no third-party tracker on this site,
           which is why the <TextLink href="/cookies">cookie notice</TextLink> is
-          as short as it is.
+          so short.
         </P>
-
-        <h3 className="mt-2 text-base font-semibold text-primary">
-          If you create an account
-        </h3>
         <Bullets>
           <li>
-            Your <Term>email address</Term>, which identifies the account and is
-            where confirmation and password-reset messages go.
+            <Term>With an account:</Term> your email address, your password as a
+            hash we cannot read, a display name if you give one, and your plan.
           </li>
           <li>
-            Your <Term>password</Term>, stored only as a cryptographic hash. We
-            cannot read it, and neither could anyone who obtained the database.
+            <Term>As a guest:</Term> just the name you typed and an internal id
+            for that session. No email, no password.
           </li>
           <li>
-            A <Term>display name</Term>, if you give one. It is a label shown to
-            the people in your rooms; it never decides what you can access.
+            <Term>When you estimate:</Term> your issues and sprints, who sat at
+            each room, the cards played, and when each round opened and closed.
           </li>
           <li>
-            Your <Term>plan</Term> and the date the account was created.
+            <Term>When you email us:</Term> your message and your address, in
+            our mailbox. There is no contact form and no database behind it.
+          </li>
+          <li>
+            <Term>Technical data:</Term> our providers log your IP address, the
+            time and your browser. Your IP also limits how many guest sessions
+            one network can open. We build no profile from it.
           </li>
         </Bullets>
-
-        <h3 className="mt-2 text-base font-semibold text-primary">
-          If you join a room as a guest
-        </h3>
-        <P>
-          Guests do not create accounts. Opening an invite link and choosing a
-          name gives you an anonymous session: we store the{" "}
-          <Term>display name</Term> you typed and an internal identifier for
-          that session. No email address, no password, and nothing that carries
-          over to another room unless you open its link too.
-        </P>
-
-        <h3 className="mt-2 text-base font-semibold text-primary">
-          When you estimate
-        </h3>
-        <Bullets>
-          <li>
-            The <Term>issues and sprints</Term> you create — their names, the
-            deck chosen and how they are ordered. Whatever you type into an
-            issue name is stored as you typed it.
-          </li>
-          <li>
-            The <Term>seats</Term> at each room: who joined, under what name,
-            and when.
-          </li>
-          <li>
-            The <Term>cards</Term> played: your estimate in each round, when you
-            played it, and the agreed estimate once the round closes.
-          </li>
-          <li>
-            <Term>Round timing</Term> — when a round opened, its timebox if it
-            has one, when it closed and why.
-          </li>
-        </Bullets>
-
-        <h3 className="mt-2 text-base font-semibold text-primary">
-          When you contact us
-        </h3>
-        <P>
-          There is no contact form — the contact page is a button that opens
-          your own mail client. Writing to us means we hold what your message
-          contains, and what your mail client sends with it: your address, the
-          name it puts on your mail, and the message itself. It lives in our
-          mailbox and nowhere else. It goes into no database of ours.
-        </P>
-
-        <h3 className="mt-2 text-base font-semibold text-primary">
-          Technical data
-        </h3>
-        <P>
-          Our hosting and database providers keep server logs containing your{" "}
-          <Term>IP address</Term>, the time of the request and your
-          browser&apos;s user agent. Your IP address is also used to rate limit
-          guest sign-ins, so that one network cannot open unlimited anonymous
-          sessions. We do not build a profile from any of it.
-        </P>
       </>
     ),
   },
   {
     id: "why-we-use-it",
-    heading: "Why we use it, and on what legal basis",
+    heading: "Why, and on what legal basis",
     body: (
       <>
         <P>
-          Under the GDPR, every use of personal data needs a lawful basis. Under
-          Act 843 the equivalent requirement is that processing be lawful,
-          necessary and not excessive. Here is each use, plainly.
+          Every use of personal data needs a lawful basis. Here is each one.
         </P>
         <Table>
           <thead>
             <tr>
               <th scope="col">What we do</th>
-              <th scope="col">Why</th>
-              <th scope="col">Lawful basis</th>
+              <th scope="col">Legal basis</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>Create and run your account</td>
-              <td>
-                You cannot sign in, own issues or keep them between sessions
-                without one.
-              </td>
-              <td>Performance of our contract with you</td>
+              <td>Run your account, your rooms, rounds and votes</td>
+              <td>Performing our contract with you</td>
             </tr>
             <tr>
-              <td>Run rooms, rounds and votes</td>
-              <td>
-                This is the service. Cards, seats and estimates are what you
-                came for.
-              </td>
-              <td>Performance of our contract with you</td>
-            </tr>
-            <tr>
-              <td>Send account emails</td>
-              <td>
-                Confirming an address and resetting a password are part of
-                keeping the account yours.
-              </td>
-              <td>Performance of our contract with you</td>
+              <td>Send confirmation and password-reset email</td>
+              <td>Performing our contract with you</td>
             </tr>
             <tr>
               <td>Keep the service secure and available</td>
-              <td>
-                Server logs and rate limiting are how abuse gets spotted and
-                stopped.
-              </td>
-              <td>
-                Our legitimate interest in a service that works and is not
-                abused
-              </td>
+              <td>Our legitimate interest in a service that is not abused</td>
             </tr>
             <tr>
-              <td>Read and answer your messages</td>
-              <td>
-                You asked us something and expect a reply, which we cannot send
-                without your address.
-              </td>
-              <td>
-                Our legitimate interest in answering someone who has written to
-                us
-              </td>
+              <td>Reply when you write to us</td>
+              <td>Our legitimate interest in answering you</td>
             </tr>
             <tr>
-              <td>Meet legal and accounting obligations</td>
-              <td>
-                Records we are required to keep, including for any paid
-                subscription.
-              </td>
-              <td>Compliance with a legal obligation</td>
+              <td>Keep records the law requires</td>
+              <td>Legal obligation</td>
             </tr>
           </tbody>
         </Table>
         <P>
-          We do not sell personal data, we do not share it with advertisers, and
-          we do not make automated decisions that produce legal or similarly
-          significant effects about you.
+          We do not sell your data, share it with advertisers, or make automated
+          decisions about you.
         </P>
       </>
     ),
@@ -226,28 +130,17 @@ const sections: readonly LegalSection[] = [
     heading: "Who can see your vote",
     body: (
       <>
-        <P>
-          This gets its own section because it is the thing Poko exists to get
-          right, and the thing most likely to be assumed rather than checked.
-        </P>
         <Callout>
-          While a round is open, the card you played is readable by you and
-          nobody else — not the other people in the room, not the room&apos;s
-          owner. That is enforced by row-level security in the database rather
-          than by the interface declining to draw it, so there is no request
-          anyone can send that returns it early.
+          While a round is open, your card is readable by you and nobody else —
+          not the other players, not the person who set up the room. The
+          database refuses to hand it over, so there is no request anyone can
+          send that reveals it early.
         </Callout>
         <P>
-          When the round closes, every card in that round becomes visible to
-          everyone seated at that room, at once. That is the point of the
-          exercise: the spread is what the conversation is about. Closed rounds
-          stay readable to the room afterwards, so a team can look back at how
-          an estimate was reached.
-        </P>
-        <P>
-          The others in a room can always see the display name you joined under
-          and whether you have played a card yet — just not what it is until the
-          round closes. Choose a name you are happy for them to see.
+          When the round closes, every card becomes visible to everyone at that
+          room at once. That is the point: the spread is what the conversation
+          is about. Others can always see the name you joined under and whether
+          you have played a card — just not what it is.
         </P>
       </>
     ),
@@ -258,17 +151,14 @@ const sections: readonly LegalSection[] = [
     body: (
       <>
         <P>
-          We use a small number of service providers to run Poko. They process
-          personal data on our instructions only, under contracts that require
-          them to keep it confidential and secure, and they may not use it for
-          their own purposes.
+          A few providers, who process data on our instructions only and may not
+          use it for their own purposes.
         </P>
         <Table>
           <thead>
             <tr>
               <th scope="col">Provider</th>
               <th scope="col">What they do</th>
-              <th scope="col">What they handle</th>
             </tr>
           </thead>
           <tbody>
@@ -276,16 +166,13 @@ const sections: readonly LegalSection[] = [
               <tr key={provider.name}>
                 <td className="font-medium text-primary!">{provider.name}</td>
                 <td>{provider.role}</td>
-                <td>{provider.data}</td>
               </tr>
             ))}
           </tbody>
         </Table>
         <P>
-          Beyond that, we disclose personal data only where the law requires it,
-          where it is necessary to establish or defend a legal claim, or where
-          the business itself changes hands — in which case you would be told
-          before your data moved, and this policy would keep applying to it.
+          Otherwise we disclose data only where the law requires it, or if the
+          business changes hands — in which case you would be told first.
         </P>
       </>
     ),
@@ -294,26 +181,13 @@ const sections: readonly LegalSection[] = [
     id: "transfers",
     heading: "Where your data goes",
     body: (
-      <>
-        <P>
-          Poko is operated from Ghana and its providers operate
-          internationally, so your data may be processed outside the country you
-          are in — including outside the European Economic Area and the United
-          Kingdom.
-        </P>
-        <P>
-          Where data leaves the EEA or the UK we rely on the European
-          Commission&apos;s Standard Contractual Clauses, with the UK Addendum
-          where the transfer starts in the UK, or on an adequacy decision where
-          one covers the destination. Where Act 843 governs a transfer out of
-          Ghana, we transfer only where the destination affords a comparable
-          level of protection or where you have consented.
-        </P>
-        <P>
-          Ask us at <MailTo address={entity.privacyEmail} /> for a copy of the
-          safeguards covering a particular transfer.
-        </P>
-      </>
+      <P>
+        Poko runs from Ghana and its providers operate internationally, so your
+        data may be processed outside your country. Where it leaves the EEA or
+        the UK we rely on the European Commission&apos;s Standard Contractual
+        Clauses, or on an adequacy decision. Ask us at{" "}
+        <MailTo address={entity.email} /> for a copy of the safeguards.
+      </P>
     ),
   },
   {
@@ -321,51 +195,29 @@ const sections: readonly LegalSection[] = [
     heading: "How long we keep it",
     body: (
       <>
-        <P>
-          We keep personal data for as long as it serves the purpose it was
-          collected for, and then we stop.
-        </P>
         <Bullets>
           <li>
-            <Term>Account data</Term> lives as long as the account does. Delete
-            the account and it goes with it.
+            <Term>Your account and everything in it</Term> lives until you
+            delete the account. That removes your issues, your seats and your
+            cards in the same step.
           </li>
           <li>
-            <Term>Issues, sprints, seats and votes</Term> stay while the account
-            that owns them stays. Deleting your account removes the issues you
-            own, the seats you took and the cards you played in the same
-            operation — the deletion cascades inside the database rather than
-            being a tidy-up job that might not run.
-          </li>
-          <li>
-            <Term>Guest sessions</Term> hold only a display name and a seat.
-            Deleting the issue removes the seat, and a scheduled job then
-            deletes the session itself — display name included — usually within
-            the hour. A guest still seated at a live issue is kept, because the
-            room has to be able to show who is at the table.
+            <Term>Guest sessions</Term> go when the issue they belong to is
+            deleted, cleared by a job that runs hourly.
           </li>
           <li>
             <Term>Email you send us</Term> stays in our mailbox while it is
-            still useful — a thread we may need to pick up again, a bug report
-            that is not fixed yet — and we clear out correspondence we no
-            longer need. Deleting your account does not reach into our mailbox,
-            so ask us if you want a thread removed too.
+            still useful. Ask if you want a thread removed.
           </li>
           <li>
-            <Term>Server logs</Term> are kept for a short period by our
-            providers — typically days to a few weeks — and then rotated out.
-          </li>
-          <li>
-            <Term>Billing records</Term>, if you subscribe to a paid plan, are
-            kept as long as tax and accounting law requires.
+            <Term>Server logs</Term> are kept briefly by our providers, then
+            rotated out.
           </li>
         </Bullets>
         <Callout>
           <Term>Deactivating is not deleting.</Term> Deactivating blocks sign-in
-          but keeps everything. Deleting is irreversible and removes the data
-          described above. Both are on your{" "}
-          <TextLink href="/settings">settings page</TextLink>, which says which
-          is which before you confirm.
+          and keeps everything. Deleting is permanent. Both are on your{" "}
+          <TextLink href="/settings">settings page</TextLink>.
         </Callout>
       </>
     ),
@@ -375,100 +227,49 @@ const sections: readonly LegalSection[] = [
     heading: "Your rights",
     body: (
       <>
-        <P>
-          Under the GDPR and under Act 843 you have rights over the personal
-          data we hold about you. You can:
-        </P>
+        <P>You can ask us to:</P>
         <Bullets>
+          <li>Show you what we hold, and give you a copy.</li>
           <li>
-            <Term>Ask what we hold</Term> and get a copy of it.
-          </li>
-          <li>
-            <Term>Correct it</Term> if it is wrong. Your display name and
-            password are editable directly on the{" "}
+            Correct it. Your name and password are editable on your{" "}
             <TextLink href="/settings">settings page</TextLink>.
           </li>
+          <li>Delete it. Deleting your account does most of this yourself.</li>
           <li>
-            <Term>Have it erased</Term>. Deleting your account does most of this
-            yourself, immediately; write to us for anything it does not cover.
+            Stop or limit how we use it, or hand it over in a portable format.
           </li>
-          <li>
-            <Term>Restrict or object to</Term> processing we carry out on the
-            basis of our legitimate interests.
-          </li>
-          <li>
-            <Term>Take it elsewhere</Term> in a structured, machine-readable
-            form.
-          </li>
-          <li>
-            <Term>Withdraw consent</Term> where consent is what we relied on,
-            without affecting anything done before you withdrew it.
-          </li>
+          <li>Withdraw consent, wherever consent is what we relied on.</li>
         </Bullets>
         <P>
-          Write to <MailTo address={entity.privacyEmail} /> and we will respond
-          within one month. There is no charge, and we will not ask for more
-          identification than we need to be sure the request is yours.
-        </P>
-        <P>
-          If you are not satisfied with how we handled a request, you can
-          complain to {authorities.ghana} or to {authorities.eu}. We would
-          rather you came to us first, but you are not required to.
+          Write to <MailTo address={entity.email} /> and we will answer
+          within a month, free. If you are unhappy with how we handled it, you
+          can complain to {authorities.ghana} or {authorities.eu}.
         </P>
       </>
     ),
   },
   {
     id: "security",
-    heading: "How it is protected",
-    body: (
-      <>
-        <P>
-          Traffic to Poko is encrypted in transit. Passwords are stored hashed
-          and are never readable, by us or by anyone else. Access to production
-          data is limited to the people who need it to run the service.
-        </P>
-        <P>
-          Inside the database, who may read which row is settled by row-level
-          security policies rather than by the queries the application happens
-          to send. That distinction is the point: a mistake in a query cannot
-          expose somebody else&apos;s data if the database would refuse to
-          return it anyway. The rules that matter most — a vote stays private
-          until its round closes, a room is visible only to the people seated at
-          it — are covered by automated tests that fail the build when they stop
-          holding.
-        </P>
-        <P>
-          No service can promise to be impenetrable and we do not. If a breach
-          occurs that is likely to result in a risk to your rights, we will
-          notify the relevant supervisory authority within 72 hours and tell you
-          directly where the risk is high.
-        </P>
-      </>
-    ),
-  },
-  {
-    id: "children",
-    heading: "Children",
+    heading: "How we protect it",
     body: (
       <P>
-        Poko is a workplace tool and is not directed at children. We do not
-        knowingly collect personal data from anyone under 16. If you believe a
-        child has given us personal data, write to{" "}
-        <MailTo address={entity.privacyEmail} /> and we will delete it.
+        Traffic is encrypted. Passwords are hashed and unreadable. Inside the
+        database, who may read which row is enforced by the database itself
+        rather than by the app remembering to ask — so a bug in our code cannot
+        expose someone else&apos;s data. If a breach puts you at risk, we will
+        tell the regulator within 72 hours and tell you directly.
       </P>
     ),
   },
   {
     id: "changes",
-    heading: "Changes to this policy",
+    heading: "Changes",
     body: (
       <P>
-        We update this policy when what we do changes — a new provider, or a
-        feature that collects something it did not before. The date at the top
-        is when the text last changed, and it moves only when the text is
-        actually revised. Where a change materially affects you, we will tell
-        account holders by email rather than relying on anyone to notice a date.
+        We update this page when what we do changes, and the date at the top
+        moves only when the text actually does. If a change affects you
+        materially, we will email account holders rather than expect anyone to
+        notice.
       </P>
     ),
   },
@@ -481,9 +282,8 @@ export default function Page() {
       title="What Poko knows about you, and why"
       summary={
         <>
-          Poko holds an email address, a display name, the issues you estimate
-          and the cards you play. No analytics, no trackers, nothing to sell.
-          This page is the long version.
+          An email address, a display name, the issues you estimate and the
+          cards you play. No analytics, no trackers, nothing to sell.
         </>
       }
       lastUpdated={lastUpdated.privacy}

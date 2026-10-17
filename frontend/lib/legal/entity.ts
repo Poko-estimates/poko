@@ -1,19 +1,12 @@
 /**
  * Facts the legal pages must state, in one place so they cannot disagree.
- * No address yet: GDPR Art. 13 still needs contact details, so these inboxes
- * carry that alone and have to be monitored.
+ * No address yet: GDPR Art. 13 still needs contact details, so this inbox
+ * carries that alone — privacy requests, legal notices and ordinary mail all
+ * land in it, so it has to be monitored.
  */
 export const entity = {
   name: "Poko",
-  /** The inbox that answers privacy and data-subject requests. */
-  privacyEmail: "privacy.poko@gmail.com",
-  /** The inbox for contractual and legal notices. */
-  legalEmail: "legal.poko@gmail.com",
-  /**
-   * The contact page is a mailto and nothing else, so a bounced or unread
-   * address loses every message silently. Give it its own inbox eventually.
-   */
-  contactEmail: "legal.poko@gmail.com",
+  email: "taframowusu@gmail.com",
 } as const
 
 /**
@@ -21,7 +14,7 @@ export const entity = {
  * drift. There is no contact page — this is the whole contact route.
  */
 export const contactMailto =
-  `mailto:${entity.contactEmail}?subject=${encodeURIComponent("Poko — hello")}`
+  `mailto:${entity.email}?subject=${encodeURIComponent("Poko — hello")}`
 
 /**
  * Kept apart from the regulators below: governing law is ours to choose, but

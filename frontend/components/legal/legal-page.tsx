@@ -129,7 +129,7 @@ function LegalPage({
                 <div className="flex flex-col gap-4 border-t border-border pt-8">
                   <p className="text-sm leading-relaxed text-muted-foreground">
                     Questions about this document? Write to{" "}
-                    <MailTo address={entity.privacyEmail} />.
+                    <MailTo address={entity.email} />.
                   </p>
 
                   <ul className="flex flex-wrap gap-x-6 gap-y-2">
