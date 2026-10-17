@@ -7,7 +7,6 @@ import { Form } from "@base-ui/react/form"
 
 import { FormAlert } from "@/components/auth/form-alert"
 import { PasswordField } from "@/components/auth/password-field"
-import { SocialAuth } from "@/components/auth/social-auth"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -45,9 +44,7 @@ function SignupForm() {
         </h1>
       </header>
 
-      <SocialAuth intent="signup" className="mt-7" />
-
-      <Form className="mt-6 flex flex-col gap-4" onFormSubmit={handleSubmit}>
+      <Form className="mt-7 flex flex-col gap-4" onFormSubmit={handleSubmit}>
         {formError && <FormAlert>{formError}</FormAlert>}
 
         <Field name="name">

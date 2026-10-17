@@ -44,7 +44,7 @@ export const subprocessors = [
   {
     name: "Supabase",
     role: "Database, authentication and realtime messaging",
-    data: "Account credentials, profile details, issues, sprints, votes and contact messages.",
+    data: "Account credentials, profile details, issues, sprints and votes.",
   },
   {
     // TODO: name the hosting provider and its processing region.
@@ -66,7 +66,7 @@ export const subprocessors = [
  * build, claiming a review that never happened. Edit the one you changed.
  */
 export const lastUpdated = {
-  privacy: "28 September 2026",
+  privacy: "17 October 2026",
   terms: "28 September 2026",
   cookies: "28 September 2026",
 } as const

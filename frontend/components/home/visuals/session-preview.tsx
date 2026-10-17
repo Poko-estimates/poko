@@ -6,10 +6,11 @@ type Participant = {
   initials: string
   name: string
   vote: string | null
+  isMe?: boolean
 }
 
 const participants: Participant[] = [
-  { initials: "AK", name: "Ama Kyei", vote: "5" },
+  { initials: "AK", name: "Ama Kyei", vote: "5", isMe: true },
   { initials: "DM", name: "Daniel Mensah", vote: "5" },
   { initials: "SO", name: "Sena Osei", vote: "8" },
   { initials: "RT", name: "Rita Tetteh", vote: "3" },
@@ -26,7 +27,7 @@ function SessionPreview() {
     <figure className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_28px_60px_-24px_rgba(20,33,61,0.45)]">
       <figcaption className="sr-only">
         A Poko estimation room where five of six teammates have voted on ticket
-        PK-2481 and the table has settled on five points.
+        PK-2481. Only your own card is face up until the last one lands.
       </figcaption>
 
       {/* Window chrome */}
@@ -88,7 +89,15 @@ function SessionPreview() {
                     : "border-2 border-dashed border-border bg-card text-muted-foreground"
                 )}
               >
-                {person.vote ?? (
+                {person.vote && person.isMe ? (
+                  person.vote
+                ) : person.vote ? (
+                  // Face-down, as in the real room: blind voting is the pitch.
+                  <span
+                    className="size-5 rotate-45 rounded-[3px] border-2 border-white/40"
+                    aria-hidden="true"
+                  />
+                ) : (
                   // Thinking indicator for the teammate who hasn't voted yet.
                   <span className="flex gap-0.5" aria-hidden="true">
                     {[0, 200, 400].map((offset) => (
@@ -108,9 +117,11 @@ function SessionPreview() {
                 {person.name.split(" ")[0]}
               </span>
               <span className="sr-only">
-                {person.vote
-                  ? `${person.name} voted ${person.vote}`
-                  : `${person.name} is still voting`}
+                {person.vote && person.isMe
+                  ? `You voted ${person.vote}`
+                  : person.vote
+                    ? `${person.name} has a card down`
+                    : `${person.name} is still voting`}
               </span>
             </li>
           ))}
@@ -141,13 +152,13 @@ function SessionPreview() {
         {/* Outcome */}
         <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-border bg-surface px-3 py-3 sm:gap-4 sm:px-4">
           <div>
-            <p className="text-xs text-muted-foreground">Team consensus</p>
+            <p className="text-xs text-muted-foreground">Waiting on Linda</p>
             <p className="text-sm font-semibold text-primary">
-              5 points · 1 outlier to discuss
+              5 of 6 cards down · flips together
             </p>
           </div>
           <span className="shrink-0 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white">
-            Save estimate
+            Close round
           </span>
         </div>
       </div>

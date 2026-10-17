@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: "%s · Poko",
   },
   description:
-    "Poko turns backlog refinement into a fast, honest round of planning poker. Blind voting, timeboxed rounds, and estimates that sync straight back to Jira, Linear and GitHub.",
+    "Poko turns backlog refinement into a fast, honest round of planning poker. Blind voting, timeboxed rounds, custom decks, and guests who join with a single link.",
   applicationName: "Poko",
   keywords: [
     "planning poker",
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Poko — Estimation tool for agile teams",
     description:
-      "Estimate as a team and agree in minutes. Blind voting, outlier detection, and two-way sync with your issue tracker.",
+      "Estimate as a team and agree in minutes. Blind voting, a shared reveal, and timeboxed rounds.",
     siteName: "Poko",
     type: "website",
   },

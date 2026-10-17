@@ -1,4 +1,4 @@
-import { MessageSquareQuote, TriangleAlert } from "lucide-react"
+import { RotateCcw } from "lucide-react"
 
 const distribution = [
   { value: "1", votes: 0 },
@@ -12,19 +12,19 @@ const distribution = [
 const totalVotes = distribution.reduce((sum, bar) => sum + bar.votes, 0)
 const mostVotes = Math.max(...distribution.map((bar) => bar.votes))
 
-/** Mock of the reveal screen: vote spread plus the outliers worth unpacking. */
+/** Mock of the reveal screen when the cards split: no estimate, a prompt to talk. */
 function ConsensusPreview() {
   return (
     <figure className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_50px_-28px_rgba(20,33,61,0.4)]">
       <figcaption className="sr-only">
         The reveal screen for PK-2481: three votes of five, one three and one
-        eight, with each outlier explaining their reasoning.
+        eight. With no consensus, nothing is recorded and voting can reopen.
       </figcaption>
 
       <div className="border-b border-border px-5 py-4">
         <p className="text-sm font-semibold text-primary">Round revealed</p>
         <p className="text-xs text-muted-foreground">
-          {totalVotes} votes · spread of 3 – 8 · median 5
+          {totalVotes} votes · from 3 to 8
         </p>
       </div>
 
@@ -51,26 +51,17 @@ function ConsensusPreview() {
         ))}
       </div>
 
-      <div className="space-y-2 border-t border-border bg-surface px-5 py-4">
-        <p className="flex items-center gap-2 text-xs font-semibold tracking-wide text-primary uppercase">
-          <TriangleAlert className="size-3.5 text-secondary" />
-          Outliers to unpack
-        </p>
-        <blockquote className="flex gap-2.5 rounded-lg bg-card p-3">
-          <MessageSquareQuote className="mt-0.5 size-4 shrink-0 text-secondary" />
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-5 py-4">
+        <div>
+          <p className="text-sm font-semibold text-primary">No consensus</p>
           <p className="text-xs text-muted-foreground">
-            <span className="font-semibold text-primary">Rita (3):</span> the
-            identity provider work already shipped last sprint — this is
-            configuration only.
+            Talk it over, then re-vote.
           </p>
-        </blockquote>
-        <blockquote className="flex gap-2.5 rounded-lg bg-card p-3">
-          <MessageSquareQuote className="mt-0.5 size-4 shrink-0 text-secondary" />
-          <p className="text-xs text-muted-foreground">
-            <span className="font-semibold text-primary">Sena (8):</span> we
-            still owe SCIM provisioning and an audit trail for every login.
-          </p>
-        </blockquote>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white">
+          <RotateCcw className="size-3.5 text-secondary" />
+          Reopen voting
+        </span>
       </div>
     </figure>
   )

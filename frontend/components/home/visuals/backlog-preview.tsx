@@ -1,4 +1,4 @@
-import { ArrowDownUp, Check, RefreshCw } from "lucide-react"
+import { ArrowDownUp, Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -42,12 +42,12 @@ const stories: Story[] = [
   },
 ]
 
-/** Mock of an imported backlog queued for estimation. */
+/** Mock of a sprint's backlog queued for estimation. */
 function BacklogPreview() {
   return (
     <figure className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_50px_-28px_rgba(20,33,61,0.4)]">
       <figcaption className="sr-only">
-        A sprint backlog imported into Poko, with two stories already estimated
+        A sprint backlog in Poko, with two stories already estimated
         and the rest queued behind the story currently on the table.
       </figcaption>
 
@@ -56,17 +56,13 @@ function BacklogPreview() {
         <div className="min-w-0 flex-1 basis-30">
           <p className="text-sm font-semibold text-primary">Sprint 24 backlog</p>
           <p className="text-xs text-muted-foreground">
-            18 stories · synced 2 min ago
+            5 stories · 2 estimated
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
           <span className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium">
             <ArrowDownUp className="size-3.5" />
             Order
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-medium text-white">
-            <RefreshCw className="size-3.5 text-secondary" />
-            Sync
           </span>
         </div>
       </div>
@@ -112,7 +108,7 @@ function BacklogPreview() {
       </ul>
 
       <div className="flex items-center gap-2 border-t border-border bg-surface px-4 py-3 text-xs text-muted-foreground sm:px-5">
-        Estimates write back to your Agile Management tool in real-time.
+        Drag to reorder. Agreed estimates are saved as soon as every card matches.
       </div>
     </figure>
   )

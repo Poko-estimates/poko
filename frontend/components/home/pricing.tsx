@@ -12,7 +12,9 @@ type Plan = {
   cadence: string
   summary: string
   features: string[]
-  cta: { label: string; href: string }
+  /** Absent while the plan can't be bought yet — see the terms' "Plans and payment". */
+  cta?: { label: string; href: string }
+  badge?: string
   featured?: boolean
 }
 
@@ -23,11 +25,12 @@ const plans: Plan[] = [
     cadence: "forever",
     summary: "For one squad giving planning poker a proper try.",
     features: [
-      "Up to 5 players per session",
-      "Unlimited sessions",
-      "Fibonacci and T-shirt decks",
-      "Manual story entry",
-      "30 days of session history",
+      "Unlimited sessions and players",
+      "Blind voting with a shared reveal",
+      "Fibonacci, powers of two and custom decks",
+      "Timeboxed rounds you can pause and reset",
+      "Sprints and a reorderable queue",
+      "Guests join by link, no account needed",
     ],
     cta: { label: "Start for free", href: "/signup" },
   },
@@ -37,14 +40,13 @@ const plans: Plan[] = [
     cadence: "per month",
     summary: "For delivery teams refining a backlog every sprint.",
     features: [
-      "Unlimited players and observers",
+      "Everything in Starter",
       "Two-way Jira, Linear and GitHub sync",
-      "Custom decks and timeboxed rounds",
       "Async voting across time zones",
       "Outlier detection and estimate notes",
       "Full history, velocity trends and CSV export",
     ],
-    cta: { label: "Start 14-day trial", href: "/signup" },
+    badge: "Coming soon",
     featured: true,
   },
 ]
@@ -58,11 +60,11 @@ function Pricing() {
             Pricing
           </p>
           <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-tight text-primary text-balance sm:text-4xl">
-            Priced per player, not per meeting
+            Free while we build the rest
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
-            Every plan includes unlimited sessions. Observers, stakeholders and
-            guests never count towards your seats.
+            Everything Poko does today is free, with no limit on sessions or
+            players. The Team plan adds tracker sync and history when it ships.
           </p>
         </Reveal>
 
@@ -86,9 +88,9 @@ function Pricing() {
                   >
                     {plan.name}
                   </h3>
-                  {plan.featured && (
+                  {plan.badge && (
                     <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-primary">
-                      Most popular
+                      {plan.badge}
                     </span>
                   )}
                 </div>
@@ -121,18 +123,32 @@ function Pricing() {
                   </p>
                 </div>
 
-                <Link
-                  href={plan.cta.href}
-                  className={cn(
-                    buttonVariants({
-                      variant: plan.featured ? "secondary" : "outline",
-                      size: "xl",
-                    }),
-                    "mt-8 w-full justify-center"
-                  )}
-                >
-                  {plan.cta.label}
-                </Link>
+                {plan.cta ? (
+                  <Link
+                    href={plan.cta.href}
+                    className={cn(
+                      buttonVariants({
+                        variant: plan.featured ? "secondary" : "outline",
+                        size: "xl",
+                      }),
+                      "mt-8 w-full justify-center"
+                    )}
+                  >
+                    {plan.cta.label}
+                  </Link>
+                ) : (
+                  // Text, not a disabled button: there is nothing to press yet.
+                  <p
+                    className={cn(
+                      "mt-8 flex h-11 items-center justify-center rounded-xl border text-[0.9375rem] font-semibold",
+                      plan.featured
+                        ? "border-white/20 text-white/70"
+                        : "border-border text-muted-foreground"
+                    )}
+                  >
+                    Not available yet
+                  </p>
+                )}
 
                 <ul
                   className={cn(
