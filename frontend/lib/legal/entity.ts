@@ -1,0 +1,71 @@
+/**
+ * Facts the legal pages must state, in one place so they cannot disagree.
+ * No address yet: GDPR Art. 13 still needs contact details, so this inbox
+ * carries that alone — privacy requests, legal notices and ordinary mail all
+ * land in it, so it has to be monitored.
+ */
+export const entity = {
+  name: "Poko",
+  email: "taframowusu@gmail.com",
+} as const
+
+/**
+ * The contact link itself, built once so the nav, footer and about page cannot
+ * drift. There is no contact page — this is the whole contact route.
+ */
+export const contactMailto =
+  `mailto:${entity.email}?subject=${encodeURIComponent("Poko — hello")}`
+
+/**
+ * Kept apart from the regulators below: governing law is ours to choose, but
+ * which authority hears a privacy complaint depends on where the reader lives.
+ */
+export const governing = {
+  law: "the laws of the Republic of Ghana",
+  courts: "the courts of Accra, Ghana",
+} as const
+
+/**
+ * Both are named because Poko answers to both — Act 843 binds the operator,
+ * the GDPR binds anyone serving EU/UK users wherever they run.
+ */
+export const authorities = {
+  ghana: "the Data Protection Commission of Ghana",
+  /** TODO: the EU lead supervisory authority, or the reader's local one. */
+  eu: "your local data protection authority in the EU or the UK",
+} as const
+
+/**
+ * Processors, listed so the claim can be checked against reality. A new
+ * service that touches user data means a row here and a fresh policy date.
+ */
+export const subprocessors = [
+  {
+    name: "Supabase",
+    role: "Database, authentication, realtime messaging, and sending account email",
+    data: "Account credentials, profile details, issues, sprints and votes, and the contents of account emails we send you.",
+  },
+  {
+    // TODO: name the hosting provider and its processing region.
+    name: "TODO — hosting provider",
+    role: "Application hosting and content delivery",
+    data: "Request metadata, including IP address and browser user agent, in server logs.",
+  },
+  {
+    // Receiving only: account email goes out through Supabase's own mailer
+    // until a custom SMTP sender is configured, which would need a row here.
+    name: "Google (Gmail)",
+    role: "Receiving anything you write to us",
+    data: "Your email address and any message you send us.",
+  },
+] as const
+
+/**
+ * Written out, not computed: `new Date()` would restamp all three on every
+ * build, claiming a review that never happened. Edit the one you changed.
+ */
+export const lastUpdated = {
+  privacy: "17 October 2026",
+  terms: "28 September 2026",
+  cookies: "28 September 2026",
+} as const

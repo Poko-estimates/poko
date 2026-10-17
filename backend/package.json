@@ -8,7 +8,9 @@
     "status": "supabase status",
     "reset": "supabase db reset",
     "migration": "supabase migration new",
-    "gen:types": "supabase gen types typescript --local > types/database.ts",
+    "gen:types": "mkdir -p ../frontend/lib/supabase && supabase gen types typescript --local --schema public > ../frontend/lib/supabase/database.types.ts",
+    "gen:types:linked": "mkdir -p ../frontend/lib/supabase && supabase gen types typescript --linked --schema public > ../frontend/lib/supabase/database.types.ts",
+    "test:db": "supabase test db",
     "link": "supabase link",
     "push": "supabase db push"
   },

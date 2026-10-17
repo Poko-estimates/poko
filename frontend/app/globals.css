@@ -7,9 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --color-surface: var(--surface);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-geist-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -27,6 +28,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -46,75 +48,159 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  --animate-breathe: breathe 4s ease-in-out infinite;
+  --animate-urgent-pulse: urgent-pulse 1.1s ease-out infinite;
+  --animate-rise: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 1.25rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/*
+ * One falling confetti piece. Each one sets its own --drift and --spin inline,
+ * so a single keyframe covers the whole burst.
+ *
+ * The prefers-reduced-motion block at the bottom of this file collapses the
+ * duration to nothing, which lands every piece on its `opacity: 0` end state —
+ * so a reader who asked for less motion gets the message and no shower.
+ */
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, -12vh, 0) rotate(0deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 0), 105vh, 0) rotate(var(--spin, 540deg));
+    opacity: 0;
+  }
+}
+
+/*
+ * The last seconds of a round, on a seat that still has no card down.
+ *
+ * A ring that expands and fades rather than a hard blink: flashing is a WCAG
+ * 2.3.1 hazard and unpleasant besides. Only the ring animates — whatever uses
+ * this also carries a solid red border, so under prefers-reduced-motion the
+ * warning is still plainly visible, just still.
+ */
+@keyframes urgent-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--destructive) 55%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 8px color-mix(in oklab, var(--destructive) 0%, transparent);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+}
+
+/*
+ * Poko brand palette.
+ *
+ *   navy  #14213D (primary)   amber #FCA311 (secondary)
+ *   white #FFFFFF             gray  #E5E5E5             black #000000
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --navy: #14213d;
+  --amber: #fca311;
+  --gray: #e5e5e5;
+
+  --background: #ffffff;
+  --foreground: var(--navy);
+  --surface: color-mix(in oklab, var(--gray) 40%, #ffffff);
+  --card: #ffffff;
+  --card-foreground: var(--navy);
+  --popover: #ffffff;
+  --popover-foreground: var(--navy);
+  --primary: var(--navy);
+  --primary-foreground: #ffffff;
+  --secondary: var(--amber);
+  --secondary-foreground: var(--navy);
+  --muted: var(--surface);
+  --muted-foreground: color-mix(in oklab, var(--navy) 62%, #ffffff);
+  --accent: var(--gray);
+  --accent-foreground: var(--navy);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --success: oklch(0.66 0.16 152);
+  --border: var(--gray);
+  --input: var(--gray);
+  --ring: var(--amber);
+  --chart-1: var(--amber);
+  --chart-2: var(--navy);
+  --chart-3: color-mix(in oklab, var(--navy) 65%, #ffffff);
+  --chart-4: color-mix(in oklab, var(--amber) 55%, #ffffff);
+  --chart-5: var(--gray);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: var(--navy);
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: var(--amber);
+  --sidebar-primary-foreground: var(--navy);
+  --sidebar-accent: color-mix(in oklab, #ffffff 12%, var(--navy));
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: color-mix(in oklab, #ffffff 14%, var(--navy));
+  --sidebar-ring: var(--amber);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #000000;
+  --foreground: #ffffff;
+  --surface: color-mix(in oklab, var(--navy) 70%, #000000);
+  --card: var(--navy);
+  --card-foreground: #ffffff;
+  --popover: var(--navy);
+  --popover-foreground: #ffffff;
+  --primary: #ffffff;
+  --primary-foreground: var(--navy);
+  --secondary: var(--amber);
+  --secondary-foreground: var(--navy);
+  --muted: var(--surface);
+  --muted-foreground: color-mix(in oklab, #ffffff 68%, var(--navy));
+  --accent: color-mix(in oklab, #ffffff 12%, var(--navy));
+  --accent-foreground: #ffffff;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --success: oklch(0.75 0.15 155);
+  --border: color-mix(in oklab, #ffffff 14%, transparent);
+  --input: color-mix(in oklab, #ffffff 18%, transparent);
+  --ring: var(--amber);
+  --chart-1: var(--amber);
+  --chart-2: #ffffff;
+  --chart-3: color-mix(in oklab, #ffffff 60%, var(--navy));
+  --chart-4: color-mix(in oklab, var(--amber) 60%, var(--navy));
+  --chart-5: color-mix(in oklab, #ffffff 25%, var(--navy));
+  --sidebar: var(--navy);
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: var(--amber);
+  --sidebar-primary-foreground: var(--navy);
+  --sidebar-accent: color-mix(in oklab, #ffffff 12%, var(--navy));
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: color-mix(in oklab, #ffffff 14%, var(--navy));
+  --sidebar-ring: var(--amber);
 }
 
 @layer base {
@@ -126,5 +212,24 @@
   }
   html {
     @apply font-sans;
+    scroll-behavior: smooth;
+  }
+  :target {
+    scroll-margin-top: 5.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
   }
 }
