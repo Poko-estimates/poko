@@ -58,6 +58,13 @@ function parseDeckValues(input: string): string[] {
   return [...seen]
 }
 
+/** "Not sure" and "need a break" are votes, not sizes a team can settle on. */
+const nonEstimateCards = new Set(["?", "☕"])
+
+function isEstimateCard(value: string): boolean {
+  return !nonEstimateCards.has(value)
+}
+
 /** URL-ish room slug for display, e.g. "Atlas · Sprint 24" -> "atlas-sprint-24". */
 function slugify(name: string): string {
   const slug = name
@@ -70,6 +77,7 @@ function slugify(name: string): string {
 
 export {
   deckPresets,
+  isEstimateCard,
   maxDeckValues,
   maxKeyLength,
   maxSprintNameLength,

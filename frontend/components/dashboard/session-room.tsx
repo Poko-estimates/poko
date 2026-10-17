@@ -1,8 +1,9 @@
 "use client"
 
 import { startTransition, useOptimistic, useState } from "react"
-import { Lock, RotateCcw, Users } from "lucide-react"
+import { Lock, Pencil, RotateCcw, Users } from "lucide-react"
 
+import { EstimatePicker } from "@/components/dashboard/estimate-picker"
 import { InviteLink } from "@/components/dashboard/invite-link"
 import { RoundClockControls } from "@/components/dashboard/round-clock-controls"
 import { RoundTimerSetup } from "@/components/dashboard/round-timer-setup"
@@ -92,6 +93,12 @@ function SessionRoom({ room }: { room: RoomState }) {
   const closed = room.status === "closed"
   const deck = room.deck.values
   const alone = room.seats.length === 1
+
+  // Keyed to the round, so reopening voting never lands back in edit mode.
+  const [changingRound, setChangingRound] = useState<number | null>(null)
+  const changing = changingRound === room.round
+  const settling =
+    closed && room.isOwner && (room.estimate === null || changing)
 
   // Subscribed here rather than inside each seat so there is one ticker for the
   // table. It costs a re-render of this subtree per second while a timed round
@@ -330,50 +337,85 @@ function SessionRoom({ room }: { room: RoomState }) {
         </div>
 
         {/* Settling the round */}
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface px-4 py-4">
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">
-              {closed ? "Saved estimate" : "This round"}
-            </p>
-            <p className="text-sm font-semibold text-primary">
-              {closed
-                ? (room.estimate ?? "No consensus — talk it over and re-vote")
-                : optimisticVote
-                  ? "Ready when the table is"
-                  : "Pick a card to get started"}
-            </p>
+        <div className="rounded-2xl border border-border bg-surface px-4 py-4">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">
+                {closed ? "Saved estimate" : "This round"}
+              </p>
+              <p className="text-sm font-semibold text-primary">
+                {closed
+                  ? (room.estimate ??
+                    (room.isOwner
+                      ? "No consensus — talk it over, then record the agreed card or re-vote"
+                      : "No consensus — talk it over and agree a card"))
+                  : optimisticVote
+                    ? "Ready when the table is"
+                    : "Pick a card to get started"}
+              </p>
+            </div>
+
+            {room.isOwner &&
+              (closed ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {room.estimate !== null && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="lg"
+                      aria-expanded={changing}
+                      onClick={() =>
+                        setChangingRound(changing ? null : room.round)
+                      }
+                    >
+                      <Pencil className="size-4" aria-hidden="true" />
+                      {changing ? "Keep estimate" : "Change estimate"}
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={() =>
+                      run(
+                        () => reopenRound(room.id),
+                        `Round ${room.round + 1} open — every card cleared`
+                      )
+                    }
+                  >
+                    <RotateCcw className="size-4" aria-hidden="true" />
+                    Reopen voting
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="default"
+                  size="lg"
+                  disabled={room.votedCount === 0}
+                  onClick={() =>
+                    run(() => closeRound(room.id), "Round closed — cards revealed")
+                  }
+                >
+                  <Lock className="size-4" aria-hidden="true" />
+                  Close voting now
+                </Button>
+              ))}
           </div>
 
-          {room.isOwner &&
-            (closed ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={() =>
-                  run(
-                    () => reopenRound(room.id),
-                    `Round ${room.round + 1} open — every card cleared`
-                  )
-                }
-              >
-                <RotateCcw className="size-4" aria-hidden="true" />
-                Reopen voting
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="default"
-                size="lg"
-                disabled={room.votedCount === 0}
-                onClick={() =>
-                  run(() => closeRound(room.id), "Round closed — cards revealed")
-                }
-              >
-                <Lock className="size-4" aria-hidden="true" />
-                Close voting now
-              </Button>
-            ))}
+          {settling && (
+            <div className="mt-4 border-t border-border pt-4">
+              <p className="mb-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                Record the card the team agreed on
+              </p>
+              <EstimatePicker
+                issueId={room.id}
+                values={deck}
+                current={room.estimate}
+                onSaved={() => setChangingRound(null)}
+              />
+            </div>
+          )}
         </div>
       </div>
     </section>
