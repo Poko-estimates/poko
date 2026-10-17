@@ -3,12 +3,12 @@ import Link from "next/link"
 import {
   ArrowRight,
   Blocks,
-  ChartColumn,
   Check,
   EyeOff,
-  Globe,
-  Plug,
+  Layers,
+  Link2,
   Timer,
+  Zap,
 } from "lucide-react"
 
 import { Container } from "@/components/site/container"
@@ -29,21 +29,21 @@ const splits: Split[] = [
   {
     eyebrow: "Refinement, prepared",
     title: "Every story is already in the room",
-    body: "Pull the sprint backlog straight from your tracker and queue it for the session. No copying ticket titles into a spreadsheet five minutes before stand-up.",
+    body: "Queue the backlog under its sprint before the session starts. No copying ticket titles into a spreadsheet five minutes before stand-up.",
     points: [
-      "Two-way sync with Jira, GitHub Issues, Azure DevOps, and Trello",
+      "Group issues by sprint, and move them between sprints as plans change",
       "Reorder the queue mid-session as priorities shift",
-      "Agreed points write back to the ticket the moment you commit",
+      "The agreed estimate is recorded the moment every card matches",
     ],
     visual: BacklogPreview,
   },
   {
     eyebrow: "Reveal and resolve",
     title: "Turn a split vote into a decision",
-    body: "Poko flags the spread instead of hiding it. The 3 and the 8 explain themselves, the team surfaces the hidden work, and you re-deal only when it will actually change the number.",
+    body: "Poko shows the split instead of averaging it away. The 3 and the 8 explain themselves, the team surfaces the hidden work, and you re-deal once the room has talked it through.",
     points: [
-      "Automatic outlier detection on every reveal",
-      "Inline notes capture the why behind each estimate",
+      "Every card flips at once, so nobody sees a vote early",
+      "A split vote is never averaged into an estimate nobody argued for",
       "One-click re-vote when new information lands",
     ],
     visual: ConsensusPreview,
@@ -59,27 +59,27 @@ const capabilities = [
   {
     icon: Timer,
     title: "Timeboxed rounds",
-    body: "A shared countdown keeps each story to ninety seconds and the whole session inside its calendar slot.",
+    body: "A shared countdown you set per story. Pause it, reset it or stop it, and keep the session inside its calendar slot.",
   },
   {
     icon: Blocks,
     title: "Any deck you like",
-    body: "Fibonacci, modified Fibonacci, T-shirt sizes, powers of two, or a custom deck saved per team.",
+    body: "Fibonacci, powers of two, or a custom deck of your own: T-shirt sizes, confidence levels, even emoji.",
   },
   {
-    icon: Plug,
-    title: "Tracker sync",
-    body: "Import stories and push estimates back automatically. Your backlog stays the single source of truth.",
+    icon: Link2,
+    title: "One link to join",
+    body: "Share the room link and guests vote straight from the browser. No install, and no account needed.",
   },
   {
-    icon: Globe,
-    title: "Async rounds",
-    body: "Split across time zones? Players leave a vote and a note, and Poko reveals once the room is complete.",
+    icon: Layers,
+    title: "Sprints",
+    body: "Keep each sprint's stories together, carry unfinished ones over, and pick up where the last session stopped.",
   },
   {
-    icon: ChartColumn,
-    title: "Estimation history",
-    body: "Track spread, velocity and the story types your team consistently under-points, sprint over sprint.",
+    icon: Zap,
+    title: "Live for everyone",
+    body: "Votes, reveals and the clock update for every seat at once, so the whole table is always looking at the same round.",
   },
 ]
 

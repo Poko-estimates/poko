@@ -21,7 +21,6 @@ export const contactMailto =
  * which authority hears a privacy complaint depends on where the reader lives.
  */
 export const governing = {
-  /** TODO: confirm with counsel before publishing. */
   law: "the laws of the Republic of Ghana",
   courts: "the courts of Accra, Ghana",
 } as const
@@ -43,8 +42,8 @@ export const authorities = {
 export const subprocessors = [
   {
     name: "Supabase",
-    role: "Database, authentication and realtime messaging",
-    data: "Account credentials, profile details, issues, sprints, votes and contact messages.",
+    role: "Database, authentication, realtime messaging, and sending account email",
+    data: "Account credentials, profile details, issues, sprints and votes, and the contents of account emails we send you.",
   },
   {
     // TODO: name the hosting provider and its processing region.
@@ -53,11 +52,11 @@ export const subprocessors = [
     data: "Request metadata, including IP address and browser user agent, in server logs.",
   },
   {
-    // TODO: name the sender, or drop that half if Supabase's own still does
-    // it. Receiving is Google regardless, while the address is a Gmail one.
-    name: "TODO — email provider, and Google (Gmail)",
-    role: "Sending account email, and receiving anything you write to us",
-    data: "Your email address, the contents of account emails we send you, and any message you send us.",
+    // Receiving only: account email goes out through Supabase's own mailer
+    // until a custom SMTP sender is configured, which would need a row here.
+    name: "Google (Gmail)",
+    role: "Receiving anything you write to us",
+    data: "Your email address and any message you send us.",
   },
 ] as const
 
@@ -66,7 +65,7 @@ export const subprocessors = [
  * build, claiming a review that never happened. Edit the one you changed.
  */
 export const lastUpdated = {
-  privacy: "28 September 2026",
+  privacy: "17 October 2026",
   terms: "28 September 2026",
   cookies: "28 September 2026",
 } as const

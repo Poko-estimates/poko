@@ -4,15 +4,15 @@ import { Reveal } from "@/components/site/reveal"
 const steps = [
   {
     title: "Open the room",
-    body: "Create a session, pick your deck and share one link. Players join from the browser — no install, no account needed for guests.",
+    body: "Name the story, pick your deck and share one link. Players join from the browser — no install, no account needed for guests.",
   },
   {
     title: "Deal the story",
-    body: "Pull the next ticket from the synced backlog, start the timer, and everyone lays a card face down at the same time.",
+    body: "Take the next story off the queue, start the timer, and everyone lays a card face down at the same time.",
   },
   {
     title: "Flip and commit",
-    body: "Cards turn over together. Talk through the outliers, agree the number, and Poko writes it back to the ticket.",
+    body: "Cards turn over together. If they match, Poko records the estimate. If they don't, talk it through and re-vote.",
   },
 ]
 
@@ -28,7 +28,7 @@ function HowItWorks() {
             How it works
           </p>
           <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-tight text-primary text-balance sm:text-4xl">
-            Three steps, ninety seconds a story
+            Three steps, a couple of minutes a story
           </h2>
         </Reveal>
 

@@ -494,6 +494,26 @@ export async function closeRound(issueId: string): Promise<IssueResult> {
   return {}
 }
 
+/**
+ * Records the card the team settled on after a split vote. `set_estimate`
+ * holds every rule: owner only, closed rounds only, and a card from this deck.
+ */
+export async function setEstimate(
+  issueId: string,
+  estimate: string
+): Promise<IssueResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase.rpc("set_estimate", {
+    p_issue_id: issueId,
+    p_estimate: estimate,
+  })
+  if (error) return { formError: describe(error) }
+
+  revalidateIssue()
+  return {}
+}
+
 /** Starts a fresh pass. The previous round's cards are kept, not deleted. */
 export async function reopenRound(issueId: string): Promise<IssueResult> {
   const supabase = await createClient()
@@ -668,6 +688,8 @@ function describe(error: { code?: string; hint?: string | null; message: string 
       return "Set a length before resetting the clock."
     case "poko_bad_timebox":
       return `Pick a length between ${formatSeconds(minRoundSeconds)} and ${formatSeconds(maxRoundSeconds)}.`
+    case "poko_round_open":
+      return "Close the round before recording an estimate."
     case "poko_issue_closed":
       return "Reopen the round before editing this issue."
     case "poko_deck_locked":

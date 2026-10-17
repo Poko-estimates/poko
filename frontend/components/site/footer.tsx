@@ -7,8 +7,6 @@ const productLinks = [
   { label: "Features", href: "/#features" },
   { label: "Pricing", href: "/#pricing" },
   { label: "How it works", href: "/#how-it-works" },
-  { label: "Integrations", href: "/integrations" },
-  { label: "Changelog", href: "/changelog" },
   { label: "About", href: "/about" },
 ]
 
@@ -26,8 +24,8 @@ function Footer() {
           <div className="max-w-sm">
             <Logo tone="light" />
             <p className="mt-5 leading-relaxed text-white/60">
-              Planning poker that keeps estimation honest, fast and tied to the
-              backlog your team already works from.
+              Planning poker that keeps estimation honest and fast, with every
+              card face down until the whole table has voted.
             </p>
           </div>
 
