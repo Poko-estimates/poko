@@ -1,33 +1,19 @@
--- Local development seed: one ready-to-use account.
---
--- `supabase db reset` drops everything, so without this every reset costs a
--- trip through the sign-up flow (and a look in Mailpit) before you can see the
--- dashboard again. This plants the account directly.
+-- Local development seed: one ready-to-use account, so a `db reset` does not
+-- cost a trip through sign-up and Mailpit.
 --
 --     pokoadmin@gmail.com / Poko1234
 --
--- Run automatically after migrations on every `supabase db reset`, per
--- `[db.seed]` in config.toml. Safe to run by hand too (`psql -f seed.sql`):
--- it leaves an existing account of the same address alone rather than
--- resetting its password underneath you.
+-- Runs automatically after migrations per `[db.seed]`, and is safe by hand —
+-- it leaves an existing account of the same address alone.
 --
--- ---------------------------------------------------------------------------
--- WHY THERE IS A GUARD AROUND ALL OF THIS
---
--- This file creates an account whose password is in version control. That is
--- fine for a throwaway local stack and unacceptable anywhere else, and the one
--- command that could do it — `supabase db reset --linked` — runs seeds against
--- the linked project.
---
--- So the seed refuses unless `app.settings.jwt_secret` is the documented local
--- default. Every real project has its own secret, which makes this a reliable
--- "am I on the dev stack" test rather than a comment asking people to be
--- careful. It fails by doing nothing and saying so.
--- ---------------------------------------------------------------------------
+-- THE GUARD IS LOAD-BEARING. This file creates an account whose password is in
+-- version control, and `supabase db reset --linked` runs seeds against the
+-- linked project. So it refuses unless `app.settings.jwt_secret` is the
+-- documented local default — a reliable "am I on the dev stack" test rather
+-- than a comment asking people to be careful.
 do $$
 declare
-  -- Fixed rather than generated, so the id survives a reset. Handy when a test
-  -- script or a SQL snippet wants to name this account, and obviously
+  -- Fixed rather than generated so the id survives a reset, and obviously
   -- synthetic at a glance.
   v_user_id  uuid := '00000000-0000-4000-8000-000000000001';
   v_email    text := 'pokoadmin@gmail.com';
@@ -71,21 +57,11 @@ begin
 
   if v_existing is null then
 
-    -- Mirrors exactly what GoTrue's admin endpoint writes for an email/password
-    -- signup, because anything less is a row that exists but cannot log in:
-    --
-    --   * encrypted_password is bcrypt, which is the only thing GoTrue will
-    --     compare a password against.
-    --   * email_confirmed_at is set, so there is no confirmation link to chase.
-    --   * raw_app_meta_data names the provider; raw_user_meta_data carries
-    --     full_name, which is where the header and seat labels read the display
-    --     name from.
-    --   * the four token columns are EMPTY STRINGS, not null. They are nullable
-    --     in the schema, but GoTrue scans them into plain Go strings, so a null
-    --     makes every login fail with "Database error querying schema" — an
-    --     error about the row it just read, not about the password. This is the
-    --     one difference between a row that exists and a row that can log in,
-    --     and it is invisible until you try.
+    -- Mirrors GoTrue's admin endpoint exactly; anything less is a row that
+    -- exists but cannot log in. The trap: the four token columns must be EMPTY
+    -- STRINGS, not null — GoTrue scans them into Go strings, so a null fails
+    -- every login with "Database error querying schema", an error about the
+    -- row rather than the password, and invisible until you try.
     insert into auth.users (
       instance_id, id, aud, role, email, encrypted_password,
       email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
@@ -136,19 +112,11 @@ begin
     raise notice 'poko seed: % is ready (password: %).', v_email, v_password;
   end if;
 
-  -- -------------------------------------------------------------------------
-  -- Sample sprints and issues.
-  --
-  -- Only when the account holds none. That keeps a re-run from stacking up
-  -- duplicates, and it doubles as a way to put the fixtures back: clear the
-  -- issues from the sidebar, run the seed again, and they return.
-  --
-  -- Everything below runs as `postgres`, which bypasses RLS and the per-column
-  -- grants. So owner_id and user_id have to be named explicitly — their
-  -- `default auth.uid()` is null outside a request — and the round is closed
-  -- through the private routine rather than public.close_round(), which would
-  -- refuse because there is no auth.uid() to authorise.
-  -- -------------------------------------------------------------------------
+  -- Sample sprints and issues, only when the account holds none — so a re-run
+  -- cannot stack duplicates, and clearing the sidebar then re-seeding restores
+  -- them. Runs as `postgres`, bypassing RLS, so owner_id and user_id are named
+  -- explicitly (auth.uid() is null outside a request) and the round closes
+  -- through the private routine rather than public.close_round().
   if exists (select 1 from public.issues where owner_id = v_user_id) then
     raise notice 'poko seed: % already has issues — sample data left alone.',
       v_email;
@@ -167,17 +135,10 @@ begin
     from public.sprints
    where owner_id = v_user_id and lower(name) = 'sprint 25';
 
-  -- created_at is set by hand on every row, and that is not decoration.
-  --
-  -- The sidebar sorts issues it has no saved order for by created_at desc, and
-  -- a sprint card takes its position from its first issue. Everything here is
-  -- inserted in one transaction, where now() is the transaction's start time —
-  -- so left to the default, all six rows would share a timestamp to the
-  -- microsecond and the display order would be whatever the planner felt like.
-  --
-  -- Spacing them out fixes the arrangement: Sprint 25 on top as the one being
-  -- refined, Sprint 24 beneath it in key order, and the unfiled spike last
-  -- (though Uncategorized sinks to the bottom regardless).
+  -- created_at is set by hand because the sidebar sorts unranked issues by it,
+  -- and one transaction means now() is identical to the microsecond for all
+  -- six rows — leaving the display order to the planner. Spacing them puts
+  -- Sprint 25 on top, Sprint 24 beneath, the unfiled spike last.
 
   -- Sprint 24: one settled, one open, one waiting on a clock.
   insert into public.issues

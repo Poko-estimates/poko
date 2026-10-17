@@ -1,18 +1,13 @@
 -- The retention sweep behind the privacy policy's claim about guest data.
--- Run with:
+-- Run with `pnpm db test:db`.
 --
---   pnpm db test:db
+-- Both failure directions are silent: sweeping too little leaves guest names
+-- accumulating while the page says they are gone, and sweeping too much takes
+-- a seated guest out of a live round mid-vote.
 --
--- These are worth testing precisely because both failure directions are
--- silent. A sweep that deletes too little leaves guest names accumulating
--- forever and nothing anywhere reports it — the page still says they are gone.
--- A sweep that deletes too much takes a seated guest out of a live round
--- mid-vote, which looks like a bug in the room, not in a cron job nobody was
--- watching.
---
--- Age is driven by inserting auth.users rows with explicit `created_at` values
--- in the past rather than by waiting, so a thirty-day-old session and a
--- one-minute-old one can both be asserted in the same millisecond.
+-- Age comes from explicit `created_at` values rather than waiting, so a
+-- thirty-day-old session and a one-minute-old one assert in the same
+-- millisecond.
 
 begin;
 

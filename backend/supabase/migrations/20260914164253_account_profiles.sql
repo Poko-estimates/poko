@@ -60,14 +60,9 @@ insert into public.profiles (id)
 select id from auth.users
 on conflict (id) do nothing;
 
--- ---------------------------------------------------------------------------
--- 3. Deactivating an account.
---
--- `banned_until` is the switch GoTrue itself checks when someone tries to sign
--- in, so this is a real deactivation rather than a flag the app has to
--- remember to honour. Reversing it needs an administrator, which is the
--- distinction from deleting: the data stays, the door closes.
--- ---------------------------------------------------------------------------
+-- 3. Deactivating. `banned_until` is what GoTrue itself checks at sign-in, so
+-- this is real rather than a flag the app must remember. Reversing it needs an
+-- administrator — the data stays, the door closes.
 create or replace function public.deactivate_own_account()
 returns void
 language plpgsql

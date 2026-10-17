@@ -1,14 +1,11 @@
--- The clock no longer starts itself.
+-- The clock no longer starts itself. A game used to be created with
+-- `round_ends_at` already set, so the countdown began as the create dialog
+-- closed — before anyone had read the story. `round_duration_seconds` is now
+-- the length and `round_ends_at` stays null until `start_round` is called.
 --
--- A game was created with `round_ends_at` already set, so the countdown began
--- the instant the create dialog closed — before anyone had read the story, let
--- alone followed the invite link. The timebox is now a setting that someone
--- starts deliberately: `round_duration_seconds` is the length, and
--- `round_ends_at` stays null until `start_round` is called.
---
--- Everything downstream already handles a null deadline correctly, which is
--- what makes this a small change: `poko_votes_guard` skips its expiry check,
--- and `close_round` reads "not expired" and so stays owner-only.
+-- Small because everything downstream already handles a null deadline:
+-- poko_votes_guard skips its expiry check, and close_round reads "not expired"
+-- and so stays owner-only.
 
 -- ---------------------------------------------------------------------------
 -- 1. A duration may now exist without a deadline.
