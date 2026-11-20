@@ -1,5 +1,4 @@
 import { BackToHero } from "@/components/home/back-to-hero"
-import { CallToAction } from "@/components/home/call-to-action"
 import { Features } from "@/components/home/features"
 import { Hero } from "@/components/home/hero"
 import { HowItWorks } from "@/components/home/how-it-works"
@@ -17,13 +16,12 @@ export default function Page() {
         <Features />
         <HowItWorks />
         <Pricing />
-        <CallToAction />
       </main>
       {/* Keeps the hash tracking the section on screen, which is what keeps
           the Features / Pricing / How it works nav links clickable more than
           once — see the component for why. */}
       <SectionSpy ids={["features", "how-it-works", "pricing"]} />
-      <BackToHero watchId="get-started" targetId="hero" />
+      <BackToHero watchId="pricing" targetId="hero" />
       <Footer />
     </>
   )
